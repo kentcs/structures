@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chapter 00: What Is a Programming Language?</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/white.css" id="theme" />
+    <style>
+        :root { --ink: #24332d; --paper: #f6f0e4; --rust: #aa4934; --gold: #d79c35; --moss: #5c7962; --muted: #647068; }
+        .reveal { color: var(--ink); font-family: "Cormorant Garamond", Georgia, serif; font-size: 34px; }
+        .reveal .slides { text-align: left; }
+        .reveal .slides section { background: radial-gradient(circle at 92% 8%, #fffdf6, var(--paper) 72%); box-sizing: border-box; min-height: 620px; padding: 52px 72px; }
+        .reveal h1, .reveal h2, .reveal h3 { color: var(--ink); font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; letter-spacing: -0.03em; text-transform: none; }
+        .reveal h1 { font-size: 2.35em; line-height: 0.9; }
+        .reveal h2 { font-size: 1.55em; line-height: 1; }
+        .reveal h3 { color: var(--rust); font-size: 1.05em; margin-bottom: 0.3em; }
+        .reveal p, .reveal li { line-height: 1.2; }
+        .reveal strong { color: var(--rust); }
+        .reveal code, .reveal pre { font-family: "IBM Plex Mono", monospace; }
+        .reveal pre { box-shadow: none; width: 100%; }
+        .reveal pre code { background: #263730; border-radius: 8px; color: #fffaf0; font-size: 0.62em; line-height: 1.45; max-height: none; padding: 1.15em 1.35em; }
+        .reveal .progress { color: var(--rust); height: 5px; }
+        .reveal .slide-number { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 0.35em; }
+        .reveal .controls { color: var(--rust); }
+        .eyebrow { color: var(--rust); font-family: "IBM Plex Mono", monospace; font-size: 0.42em; letter-spacing: 0.08em; text-transform: uppercase; }
+        .subtitle { color: var(--muted); font-size: 0.85em; max-width: 760px; }
+        .rule { background: var(--rust); height: 7px; margin: 30px 0; width: 86px; }
+        .pipeline { align-items: center; display: flex; gap: 10px; justify-content: center; margin-top: 50px; }
+        .pipeline .box { background: #fffdf7; border: 2px solid var(--ink); border-radius: 8px; font-size: 0.51em; padding: 18px 10px; text-align: center; width: 135px; }
+        .pipeline .arrow { color: var(--rust); font-family: "IBM Plex Mono", monospace; font-size: 0.75em; }
+        .compare { display: grid; gap: 45px; grid-template-columns: 1fr 1fr; margin-top: 35px; }
+        .compare > div { border-top: 8px solid var(--gold); padding-top: 14px; }
+        .compare > div:last-child { border-top-color: var(--moss); }
+        .callout { background: #e3eadf; border-radius: 8px; font-size: 0.72em; margin-top: 28px; padding: 16px 22px; }
+        .tree { font-family: "IBM Plex Mono", monospace; font-size: 0.78em; line-height: 1.28; white-space: pre; }
+        .timeline { display: grid; gap: 12px; grid-template-columns: repeat(5, 1fr); margin-top: 52px; }
+        .timeline div { border-top: 7px solid var(--rust); font-size: 0.55em; padding-top: 12px; }
+        .timeline div:nth-child(2) { border-top-color: var(--gold); }
+        .timeline div:nth-child(3) { border-top-color: var(--moss); }
+        .timeline div:nth-child(4) { border-top-color: #66869a; }
+        .timeline div:nth-child(5) { border-top-color: #856b90; }
+        .timeline b { display: block; font-size: 1.18em; margin-bottom: 6px; }
+        .caption { color: var(--muted); font-size: 0.58em; margin-top: 24px; text-align: center; }
+    </style>
+</head>
+
+<body>
+    <div class="reveal"><div class="slides">
+        <section data-markdown="topic-00-slides.md" data-separator="^---$" data-separator-notes="^Note:"></section>
+    </div></div>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/markdown/markdown.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/notes/notes.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/highlight/highlight.js"></script>
+    <script>
+        Reveal.initialize({ hash: true, slideNumber: true, transition: "fade", backgroundTransition: "fade", plugins: [RevealMarkdown, RevealNotes, RevealHighlight] });
+    </script>
+</body>
+
+</html>
