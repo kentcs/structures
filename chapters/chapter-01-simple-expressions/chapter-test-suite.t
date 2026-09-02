@@ -1,6 +1,6 @@
-// Chapter 1: Numbers and Arithmetic - Test Suite
+// Chapter 1: Simple Expressions - Test Suite
 
-print("Chapter 1: Numbers and Arithmetic");
+print("Chapter 1: Simple Expressions");
 
 print "Testing basic numbers...";
 x = 1;
