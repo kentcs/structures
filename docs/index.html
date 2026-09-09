@@ -1,76 +1,112 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
-    <meta charset="utf-8" />
+    <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Structure of Programming Languages</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <style>
-        :root {
-            --ink: #24332d;
-            --paper: #f6f0e4;
-            --rust: #aa4934;
-            --gold: #d79c35;
-            --moss: #5c7962;
-            --muted: #647068;
-        }
-
-        * { box-sizing: border-box; }
-
         body {
-            align-items: center;
-            background: radial-gradient(circle at 85% 8%, #fffdf7, var(--paper) 68%);
-            color: var(--ink);
-            display: flex;
-            font-family: "Cormorant Garamond", Georgia, serif;
-            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 48px 24px;
+            display: flex;
+            align-items: center;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         }
 
-        main { margin: 0 auto; max-width: 780px; width: 100%; }
-        .eyebrow { color: var(--rust); font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
-        h1 { font-size: clamp(3.3rem, 9vw, 5.8rem); letter-spacing: -0.05em; line-height: 0.85; margin: 20px 0 26px; }
-        .intro { color: var(--muted); font-size: 1.45rem; line-height: 1.2; max-width: 600px; }
-        section { border-top: 6px solid var(--gold); margin-top: 52px; padding-top: 16px; }
-        section:last-of-type { border-top-color: var(--moss); }
-        h2 { font-size: 2.1rem; margin: 0 0 16px; }
-        a { background: rgba(255, 253, 247, 0.78); border: 1px solid #d8cfbe; color: inherit; display: block; margin: 12px 0; padding: 18px 22px; text-decoration: none; transition: transform 160ms ease, border-color 160ms ease; }
-        a:hover { border-color: var(--rust); transform: translateX(6px); }
-        .title { font-size: 1.45rem; font-weight: 700; }
-        .description { color: var(--muted); font-size: 1.03rem; margin-top: 5px; }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 30px;
+            font-weight: 700;
+        }
+
+        .toc-section {
+            margin-bottom: 30px;
+        }
+
+        .toc-section h2 {
+            color: #764ba2;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        .toc-link {
+            display: block;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            text-decoration: none;
+            color: #333;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .toc-link:hover {
+            background: #e7e9ff;
+            border-left-color: #764ba2;
+            transform: translateX(4px);
+        }
+
+        .description {
+            color: #666;
+            font-size: 14px;
+            margin-top: 4px;
+        }
     </style>
 </head>
 
 <body>
-    <main>
-        <div class="eyebrow">Course materials</div>
-        <h1>Structure of<br />Programming Languages</h1>
-        <p class="intro">Published material for the active course. The workbook follows the chapter sequence; slides support the lecture topics.</p>
+    <div class="container" style="max-width: 600px">
+        <h1>📚 Structure of Programming Languages</h1>
 
-        <section>
+        <div class="toc-section">
             <h2>Workbook Chapters</h2>
-            <a href="workbook/chapter-00-what-is-a-programming-language.pdf">
-                <div class="title">What Is a Programming Language?</div>
-                <div class="description">The opening chapter: language, syntax, semantics, structure, and behavior.</div>
+            <a href="workbook/chapter-00-what-is-a-programming-language.pdf" class="toc-link">
+                Chapter 0: What Is a Programming Language?
+                <div class="description">Language, syntax, semantics, and the implementation of Vertex.</div>
             </a>
-        </section>
-
-        <section>
+            <a href="workbook/chapter-01-simple-expressions.pdf" class="toc-link">
+                Chapter 1: Simple Expressions
+                <div class="description">Vertex's tokenizer, expression trees, recursive-descent parser, and evaluator.</div>
+            </a>
+        </div>
+        <div class="toc-section">
             <h2>Slide Decks</h2>
-            <a href="slides/topic-00-slides.html">
-                <div class="title">Topic 00: What Is a Programming Language?</div>
-                <div class="description">A visual introduction to Vertex and the language implementation pipeline.</div>
+            <a href="slides/topic-00-slides.html" class="toc-link">
+                Chapter 0: What Is a Programming Language?
+                <div class="description">An introduction to Vertex and language implementation.</div>
             </a>
-            <a href="slides/topic-01-expressions.html">
-                <div class="title">Topic 01: Simple Expressions</div>
-                <div class="description">Literals, operators, precedence, and the tokenizer-parser-evaluator pipeline.</div>
+            <a href="slides/chapter-01-simple-expressions/topic-01-slides.html" class="toc-link">
+                Chapter 1: Simple Expressions
+                <div class="description">Following an expression through tokenization, parsing, and evaluation.</div>
             </a>
-        </section>
-    </main>
+        </div>
+        <div class="toc-section">
+            <h2>References</h2>
+            <a href="notes/notes-regex.pdf" class="toc-link">
+                Regular Expressions
+                <div class="description">Patterns and tokenization.</div>
+            </a>
+            <a href="notes/notes-EBNF.pdf" class="toc-link">
+                Extended Backus-Naur Form (EBNF)
+                <div class="description">Grammar notation and concepts.</div>
+            </a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>
