@@ -72,11 +72,18 @@ def test_digits():
 
 def test_floats():
     print("test tokenize floats")
-    for text, expected in [("1.5", 1.5), (".5", 0.5), ("5.", 5.0)]:
-        t = tokenize(text)
-        assert t[0]["tag"] == "number"
-        assert t[0]["value"] == expected
-        assert t[1]["tag"] is None
+    t = tokenize("12.5")
+    assert t[0]["tag"] == "number"
+    assert t[0]["value"] == 12.5
+    assert t[1]["tag"] is None
+    t = tokenize(".5")
+    assert t[0]["tag"] == "number"
+    assert t[0]["value"] == 0.5
+    assert t[1]["tag"] is None
+    t = tokenize("5.")
+    assert t[0]["tag"] == "number"
+    assert t[0]["value"] == 5.0
+    assert t[1]["tag"] is None
 
 
 def test_operators():

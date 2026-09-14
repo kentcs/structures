@@ -9,7 +9,7 @@ if __name__ == "__main__":
         print("Usage: python runner.py <expression>")
         sys.exit(1)
     expression = sys.argv[1]
-    if expression.endswith(".t"):
+    if expression.endswith(".v") or expression.endswith(".t"):
         with open(expression, "r") as f:
             expression = f.read().strip()
     tokens = tokenize(expression)
