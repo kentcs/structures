@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 2: Programs and Assignments</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="programs-and-assignments">Programs and Assignments</h1>
+<p>How <code>x = 2; print x;</code> becomes output</p>
+<aside class="notes">Topic source: ../../topic-02-programs-and-assignments/. Chapter source: chapter-02-programs-and-assignments.md. This deck frames the first lecture. Develop the grammar, AST, and execution trace on the whiteboard. The second lecture follows the implementation code. Current language: nonempty programs containing assignment and print statements, arithmetic expressions with integers, floats, unary minus, identifiers, and flexible semicolon runs. Assignment is a statement, not an expression.</aside></section>
+<section><h2 id="the-new-program">The New Program</h2>
+<pre class="vertex"><code>x = 2;
+print x;</code></pre>
+<pre class="text"><code>2</code></pre>
+<p>What must the interpreter remember?</p>
+<aside class="notes">Begin with the behavior rather than the implementation. Chapter 1 could evaluate one expression and return one value. This source contains two actions. The first statement must affect the second. Ask what must persist after the assignment finishes. Use the whiteboard to identify the name x, the value 2, statement order, and visible output.</aside></section>
+<section><h2 id="expressions-and-statements">Expressions and Statements</h2>
+<p>An <strong>expression</strong> produces a value.</p>
+<pre class="vertex"><code>x + 3 * 4</code></pre>
+<p>A <strong>statement</strong> performs an action.</p>
+<pre class="vertex"><code>x = 2
+print x</code></pre>
+<aside class="notes">The right side of assignment is an expression. The argument of print is also an expression. Assignment changes stored state. Print produces output. Topic 2 uses only assignment and print statements. Do not introduce expression statements or compound statements here.</aside></section>
+<section><h2 id="a-program-contains-statements">A Program Contains
+Statements</h2>
+<pre class="text"><code>program = statement_list
+
+statement = assignment_statement
+          | print_statement</code></pre>
+<p>A statement list contains at least one statement.</p>
+<aside class="notes">Develop the hierarchy on the whiteboard: program, statement list, statement. The program is the parser&#x27;s new top-level unit. The statement list preserves source order. Topic 1 used expression as the public parser&#x27;s entry point. Topic 2 uses program.</aside></section>
+<section><h2 id="separating-statements">Separating Statements</h2>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Valid?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x = 2</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>x = 2; print x</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>;;;x = 2;;;print x;;;</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>x = 2 print x</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td>empty input</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<aside class="notes">Ask the class to infer the rule before showing the EBNF on the next slide. Leading and trailing semicolons are allowed. One or more semicolons must occur between adjacent statements. A single statement needs no semicolon. Newlines are whitespace and do not replace separators.</aside></section>
+<section><h2 id="statement-list-grammar">Statement List Grammar</h2>
+<pre class="text"><code>statement_list = { &quot;;&quot; } statement
+                 { &quot;;&quot; { &quot;;&quot; } statement }
+                 { &quot;;&quot; }</code></pre>
+<p>Braces mean zero or more repetitions.</p>
+<aside class="notes">Read the rule in three parts. First, consume optional leading semicolons and one required statement. Second, repeat a separator followed by another statement. Third, allow trailing semicolons. The first statement outside braces makes the list nonempty. There are no brackets or compound statements in Topic 2.</aside></section>
+<section><h2 id="the-two-statement-forms">The Two Statement Forms</h2>
+<pre class="text"><code>assignment_statement = &lt;identifier&gt; &quot;=&quot; expression
+
+print_statement = &quot;print&quot; expression</code></pre>
+<pre class="vertex"><code>x = 2
+print x</code></pre>
+<aside class="notes">The first token distinguishes the two forms. Assignment begins with an identifier. Print begins with the print keyword. The expression grammar remains separate and appears on the right side of each statement form.</aside></section>
+<section><h2 id="identifiers-in-expressions">Identifiers in Expressions</h2>
+<pre class="text"><code>factor = &lt;number&gt;
+       | &lt;identifier&gt;
+       | &quot;(&quot; expression &quot;)&quot;</code></pre>
+<pre class="vertex"><code>y = x + 3 * 4</code></pre>
+<p>What value does <code>x</code> have?</p>
+<aside class="notes">Simple Expressions already had numbers, parentheses, floats, and unary minus. Topic 2 adds identifiers as a factor form. The parser can recognize x as an identifier node without knowing its value. The evaluator must obtain that value from the environment at runtime.</aside></section>
+<section><h2 id="expressions-carry-forward">Expressions Carry Forward</h2>
+<pre class="text"><code>term = unary { (&quot;*&quot; | &quot;/&quot;) unary }
+unary = &quot;-&quot; unary | factor</code></pre>
+<pre class="vertex"><code>x = -1.5
+y = 3 * -2</code></pre>
+<aside class="notes">Do not reteach this as new Topic 2 material. The expression parser carries forward from Simple Expressions. This slide is here to show that assignment does not replace expression parsing. Right-hand sides still use the same expression rules, now with identifiers available as factors.</aside></section>
+<section><h2 id="the-program-tree">The Program Tree</h2>
+<pre class="text"><code>program
+  statement_list
+    assign x
+      number 2
+    print
+      identifier x</code></pre>
+<p>The tree preserves statement order.</p>
+<aside class="notes">Draw the full AST on the whiteboard. Program contains one statement-list node. Its list holds an assign node followed by a print node. The assignment target is the name x. Its expression is the number node. Print contains an identifier expression. Semicolons do not need nodes.</aside></section>
+<section><h2 id="the-environment">The Environment</h2>
+<p>An environment maps names to values.</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th style="text-align: right;">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td style="text-align: right;"><code>2</code></td>
+</tr>
+</tbody>
+</table>
+<p>The program begins with an empty environment.</p>
+<aside class="notes">Represent the environment as a table on the whiteboard. The Python implementation uses a dictionary, but the concept is a mapping. Before x = 2, the table has no x row. After assignment, x maps to 2. Topic 2 needs only one environment shared by the whole program.</aside></section>
+<section><h2 id="assignment-changes-the-environment">Assignment Changes the
+Environment</h2>
+<pre class="vertex"><code>x = 2</code></pre>
+<ol type="1">
+<li>Evaluate the expression <code>2</code>.</li>
+<li>Associate the result with <code>x</code>.</li>
+</ol>
+<pre class="text"><code>{} becomes {&quot;x&quot;: 2}</code></pre>
+<aside class="notes">Trace the semantic rule without showing evaluator code. Evaluation of the right side happens before the update. This order later supports x = x + 1 because the right side reads the old value and assignment then stores the new one. Assignment returns no Vertex value in this chapter.</aside></section>
+<section><h2 id="print-reads-the-environment">Print Reads the Environment</h2>
+<pre class="vertex"><code>print x</code></pre>
+<ol type="1">
+<li>Look up <code>x</code>.</li>
+<li>Obtain <code>2</code>.</li>
+<li>Print <code>2</code>.</li>
+</ol>
+<p>An unknown name causes an evaluation error.</p>
+<aside class="notes">The parser can recognize the identifier without proving that a value exists. Lookup happens during evaluation. If the environment has no binding for x, evaluation raises an unknown-identifier error. Keep the discussion to one environment. Parent environments belong to later scope topics.</aside></section>
+<section><h2 id="one-environment-for-the-program">One Environment for the
+Program</h2>
+<table>
+<thead>
+<tr>
+<th>Statement</th>
+<th>Environment afterward</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x = 2</code></td>
+<td><code>{"x": 2}</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>print x</code></td>
+<td><code>{"x": 2}</code></td>
+<td><code>2</code></td>
+</tr>
+<tr>
+<td><code>y = x + 3 * 4</code></td>
+<td><code>{"x": 2, "y": 14}</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>print y</code></td>
+<td><code>{"x": 2, "y": 14}</code></td>
+<td><code>14</code></td>
+</tr>
+</tbody>
+</table>
+<aside class="notes">Use the supplied example.v program. Execute one row at a time on the whiteboard. Each statement receives the same environment. Assignment mutates it. Later statements see earlier bindings. Arithmetic precedence still groups 3 * 4 before addition.</aside></section>
+<section><h2 id="assignment-is-a-statement">Assignment Is a Statement</h2>
+<p>Valid:</p>
+<pre class="vertex"><code>x = 2;
+print x;</code></pre>
+<p>Invalid in Topic 2:</p>
+<pre class="vertex"><code>print (x = 2)</code></pre>
+<aside class="notes">State the design boundary directly. The expression parser does not recognize equals. Later topics may introduce assignment expressions and the additional parser decisions they require. Do not anticipate that implementation in this lecture.</aside></section>
+<section><h2 id="real-parser-code-go">Real Parser Code: Go</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode go"><code class="sourceCode go"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">case</span> token<span class="op">.</span>ADD<span class="op">,</span> token<span class="op">.</span>SUB<span class="op">,</span> token<span class="op">.</span>NOT<span class="op">,</span> token<span class="op">.</span>XOR<span class="op">,</span> token<span class="op">.</span>AND<span class="op">,</span> token<span class="op">.</span>TILDE<span class="op">:</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    pos<span class="op">,</span> op <span class="op">:=</span> p<span class="op">.</span>pos<span class="op">,</span> p<span class="op">.</span>tok</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    p<span class="op">.</span>next<span class="op">()</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    x <span class="op">:=</span> p<span class="op">.</span>parseUnaryExpr<span class="op">()</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="op">&amp;</span>ast<span class="op">.</span>UnaryExpr<span class="op">{</span>OpPos<span class="op">:</span> pos<span class="op">,</span> Op<span class="op">:</span> op<span class="op">,</span> X<span class="op">:</span> x<span class="op">}</span></span></code></pre></div>
+<p>Same move: consume the operator, parse the operand, build a tree
+node.</p>
+<aside class="notes">This excerpt is from Go&#x27;s standard parser in go/parser/parser.go, in parseUnaryExpr. It is larger than Vertex because Go has more unary operators and richer AST structs, but the parsing pattern is the same as parse_unary in Simple Expressions. The front end of a real language system still has to recognize tokens, choose grammar rules, and build tree nodes that later stages can use.</aside></section>
+<section><h2 id="topic-2">Topic 2</h2>
+<p>Vertex can now:</p>
+<ul>
+<li>execute a nonempty statement list</li>
+<li>assign values to names</li>
+<li>use names in arithmetic expressions</li>
+<li>print expression values</li>
+</ul>
+<p>The next lecture follows these rules through the code.</p>
+<aside class="notes">Close by returning to the original program. The first lecture has defined its syntax, tree structure, and evaluation model. In the code lecture, follow tokenizer.py, parser.py, evaluator.py, runner.py, tests, and example.v in that order.</aside></section></div></div>
+<script src="slide-assets/reveal.js"></script><script src="slide-assets/notes.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none',plugins:[RevealNotes]});</script>
+</body></html>
