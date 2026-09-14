@@ -7,6 +7,8 @@ def evaluate(ast):
         return evaluate(ast["left"]) + evaluate(ast["right"])
     elif ast["tag"] == "-":
         return evaluate(ast["left"]) - evaluate(ast["right"])
+    elif ast["tag"] == "unary-":
+        return -evaluate(ast["operand"])
     elif ast["tag"] == "*":
         return evaluate(ast["left"]) * evaluate(ast["right"])
     elif ast["tag"] == "/":
@@ -37,6 +39,12 @@ def test_evaluate():
     tokens = tokenizer.tokenize("3*(4+5)")
     ast, tokens = parser.parse_expression(tokens)
     assert evaluate(ast) == 27
+    tokens = tokenizer.tokenize("-1.5+2")
+    ast, tokens = parser.parse_expression(tokens)
+    assert evaluate(ast) == 0.5
+    tokens = tokenizer.tokenize("3*-2")
+    ast, tokens = parser.parse_expression(tokens)
+    assert evaluate(ast) == -6
 
 if __name__ == "__main__":
     test_evaluate()
