@@ -6,78 +6,173 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Code: Programs and Assignments</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
+            background: #f5f7f9;
+            color: #172b36;
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             line-height: 1.5;
-            margin: 2rem auto;
-            max-width: 1040px;
-            padding: 0 1rem;
+            margin: 0;
+        }
+
+        main {
+            margin: 0 auto;
+            max-width: 1600px;
+            padding: 24px;
         }
 
         a {
             color: #174ea6;
         }
 
-        h2 {
-            margin-top: 2rem;
+        h1 {
+            font-size: 26px;
+            margin: 8px 0 20px;
         }
 
-        .file-list {
+        h2 {
+            font: 600 16px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            margin: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .browser {
             background: white;
-            border-bottom: 1px solid #d0d7de;
-            padding: 0.5rem 0 1rem;
-            position: sticky;
-            top: 0;
+            border: 1px solid #ccd6dc;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: 270px minmax(0, 1fr);
+            height: calc(100vh - 190px);
+            min-height: 430px;
+            overflow: hidden;
+        }
+
+        nav {
+            background: #edf2f5;
+            border-right: 1px solid #ccd6dc;
+            overflow: auto;
+            padding: 12px;
+        }
+
+        nav ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        nav a {
+            border-radius: 4px;
+            display: block;
+            font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            overflow-wrap: anywhere;
+            padding: 9px 10px;
+            text-decoration: none;
+        }
+
+        nav a:hover {
+            background: #dfe9ed;
+        }
+
+        nav a[aria-current="true"] {
+            background: #155e75;
+            color: white;
+        }
+
+        a:focus-visible {
+            outline: 3px solid #d18a00;
+            outline-offset: -3px;
+        }
+
+        .viewer {
+            min-height: 0;
+            min-width: 0;
         }
 
         .source-file {
-            border: 1px solid #d0d7de;
-            border-radius: 6px;
-            margin: 1rem 0;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
         }
 
-        summary {
-            cursor: pointer;
-            font-weight: 700;
-            padding: 0.75rem 1rem;
+        .source-file[hidden] {
+            display: none;
         }
 
-        summary:hover {
-            background: #f6f8fa;
+        .file-header {
+            align-items: center;
+            border-bottom: 1px solid #ccd6dc;
+            display: flex;
+            gap: 16px;
+            justify-content: space-between;
+            padding: 12px 18px;
         }
 
         pre {
-            background: #f6f8fa;
-            border-top: 1px solid #d0d7de;
+            background: #fafbfc;
+            flex: 1;
             margin: 0;
             overflow-x: auto;
-            padding: 1rem;
+            padding: 20px;
+            tab-size: 4;
             white-space: pre;
         }
 
         code {
             font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
             font-size: 14px;
+            line-height: 1.55;
+        }
+
+        .repo-note {
+            margin-top: 16px;
+        }
+
+        @media (max-width: 700px) {
+            main {
+                padding: 12px;
+            }
+
+            h1 {
+                font-size: 21px;
+            }
+
+            .browser {
+                grid-template-columns: 1fr;
+                grid-template-rows: 160px minmax(0, 1fr);
+                height: calc(100dvh - 170px);
+                min-height: 500px;
+            }
+
+            nav {
+                border-bottom: 1px solid #ccd6dc;
+                border-right: 0;
+            }
         }
     </style>
 </head>
 
 <body>
     <main>
+        <p><a href="../index.html">Back to chapter</a></p>
         <h1>Code</h1>
-        <nav class="file-list" aria-label="Files">
-        <ul>
-        <li><a href="#file-evaluator-py">evaluator.py</a></li>
-        <li><a href="#file-example-v">example.v</a></li>
-        <li><a href="#file-parser-py">parser.py</a></li>
-        <li><a href="#file-runner-py">runner.py</a></li>
-        <li><a href="#file-tokenizer-py">tokenizer.py</a></li>
-        <li><a href="#file-vertex">vertex</a></li>
-        </ul>
-        </nav>
-        <details class="source-file" id="file-evaluator-py">
-            <summary>evaluator.py</summary>
-            <pre><code>import parser, tokenizer
+        <div class="browser">
+            <nav aria-label="Files">
+            <ul>
+                <li><a href="#file-evaluator-py">evaluator.py</a></li>
+                <li><a href="#file-example-v">example.v</a></li>
+                <li><a href="#file-parser-py">parser.py</a></li>
+                <li><a href="#file-runner-py">runner.py</a></li>
+                <li><a href="#file-tokenizer-py">tokenizer.py</a></li>
+                <li><a href="#file-vertex">vertex</a></li>
+            </ul>
+            </nav>
+            <div class="viewer">
+            <section class="source-file" id="file-evaluator-py">
+                <header class="file-header"><h2>evaluator.py</h2></header>
+                <pre><code>import parser, tokenizer
 
 
 def evaluate(ast, environment):
@@ -210,18 +305,18 @@ if __name__ == "__main__":
     test_evaluate_program()
     print("done.")
 </code></pre>
-        </details>
-        <details class="source-file" id="file-example-v">
-            <summary>example.v</summary>
-            <pre><code>x = 2;
+            </section>
+            <section class="source-file" id="file-example-v" hidden>
+                <header class="file-header"><h2>example.v</h2></header>
+                <pre><code>x = 2;
 print x;
 y = x + 3 * 4;
 print y;
 </code></pre>
-        </details>
-        <details class="source-file" id="file-parser-py">
-            <summary>parser.py</summary>
-            <pre><code># parser.py
+            </section>
+            <section class="source-file" id="file-parser-py" hidden>
+                <header class="file-header"><h2>parser.py</h2></header>
+                <pre><code># parser.py
 
 from tokenizer import tokenize
 from pprint import pprint
@@ -638,10 +733,10 @@ if __name__ == "__main__":
     test_parse()
     print("done.")
 </code></pre>
-        </details>
-        <details class="source-file" id="file-runner-py">
-            <summary>runner.py</summary>
-            <pre><code>import sys
+            </section>
+            <section class="source-file" id="file-runner-py" hidden>
+                <header class="file-header"><h2>runner.py</h2></header>
+                <pre><code>import sys
 
 from tokenizer import tokenize
 from parser import parse
@@ -659,10 +754,10 @@ if __name__ == "__main__":
     ast = parse(tokens)
     evaluate(ast, {})
 </code></pre>
-        </details>
-        <details class="source-file" id="file-tokenizer-py">
-            <summary>tokenizer.py</summary>
-            <pre><code>import re
+            </section>
+            <section class="source-file" id="file-tokenizer-py" hidden>
+                <header class="file-header"><h2>tokenizer.py</h2></header>
+                <pre><code>import re
 from pprint import pprint
 
 # p = re.compile("ab*")
@@ -822,16 +917,34 @@ if __name__ == "__main__":
     test_error()
     print("done.")
 </code></pre>
-        </details>
-        <details class="source-file" id="file-vertex">
-            <summary>vertex</summary>
-            <pre><code>#!/usr/bin/env bash
+            </section>
+            <section class="source-file" id="file-vertex" hidden>
+                <header class="file-header"><h2>vertex</h2></header>
+                <pre><code>#!/usr/bin/env bash
 exec python3 "$(dirname "$0")/runner.py" "$@"
 </code></pre>
-        </details>
-
-        <p><a href="../../index.html">Back to course index</a></p>
+            </section>
+            </div>
+        </div>
+        <p class="repo-note">These files are also available in the <a href="https://github.com/kentcs/structures">course repository</a>.</p>
     </main>
+    <script>
+        const links = [...document.querySelectorAll("nav a")];
+        const panels = [...document.querySelectorAll(".source-file")];
+
+        function showFile() {
+            const selected = links.find((link) => link.hash === location.hash) || links[0];
+            if (!selected) return;
+            for (const link of links) {
+                if (link === selected) link.setAttribute("aria-current", "true");
+                else link.removeAttribute("aria-current");
+            }
+            for (const panel of panels) panel.hidden = "#" + panel.id !== selected.hash;
+        }
+
+        window.addEventListener("hashchange", showFile);
+        showFile();
+    </script>
 </body>
 
 </html>
