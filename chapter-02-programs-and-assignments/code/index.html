@@ -10,12 +10,54 @@
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             line-height: 1.5;
             margin: 2rem auto;
-            max-width: 720px;
+            max-width: 1040px;
             padding: 0 1rem;
         }
 
         a {
             color: #174ea6;
+        }
+
+        h2 {
+            margin-top: 2rem;
+        }
+
+        .file-list {
+            background: white;
+            border-bottom: 1px solid #d0d7de;
+            padding: 0.5rem 0 1rem;
+            position: sticky;
+            top: 0;
+        }
+
+        .source-file {
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            margin: 1rem 0;
+        }
+
+        summary {
+            cursor: pointer;
+            font-weight: 700;
+            padding: 0.75rem 1rem;
+        }
+
+        summary:hover {
+            background: #f6f8fa;
+        }
+
+        pre {
+            background: #f6f8fa;
+            border-top: 1px solid #d0d7de;
+            margin: 0;
+            overflow-x: auto;
+            padding: 1rem;
+            white-space: pre;
+        }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            font-size: 14px;
         }
     </style>
 </head>
@@ -23,14 +65,771 @@
 <body>
     <main>
         <h1>Code</h1>
+        <nav class="file-list" aria-label="Files">
         <ul>
-        <li><a href="evaluator.py">evaluator.py</a></li>
-        <li><a href="example.v">example.v</a></li>
-        <li><a href="parser.py">parser.py</a></li>
-        <li><a href="runner.py">runner.py</a></li>
-        <li><a href="tokenizer.py">tokenizer.py</a></li>
-        <li><a href="vertex">vertex</a></li>
+        <li><a href="#file-evaluator-py">evaluator.py</a></li>
+        <li><a href="#file-example-v">example.v</a></li>
+        <li><a href="#file-parser-py">parser.py</a></li>
+        <li><a href="#file-runner-py">runner.py</a></li>
+        <li><a href="#file-tokenizer-py">tokenizer.py</a></li>
+        <li><a href="#file-vertex">vertex</a></li>
         </ul>
+        </nav>
+        <details class="source-file" id="file-evaluator-py">
+            <summary>evaluator.py</summary>
+            <pre><code>import parser, tokenizer
+
+
+def evaluate(ast, environment):
+    if ast["tag"] == "number":
+        return ast["value"]
+    elif ast["tag"] == "identifier":
+        identifier = ast["value"]
+        env = environment
+        while True:
+            if identifier in env:
+                return env[identifier]
+            if "$PARENT" in env:
+                env = env["$PARENT"]
+                continue
+            raise ValueError(f"Unknown identifier: {identifier}")
+    elif ast["tag"] == "assign":
+        value = evaluate(ast["expression"], environment)
+        environment[ast["target"]] = value
+        return None
+    elif ast["tag"] == "unary-":
+        return -evaluate(ast["operand"], environment)
+    elif ast["tag"] == "+":
+        return evaluate(ast["left"], environment) + evaluate(ast["right"], environment)
+    elif ast["tag"] == "-":
+        return evaluate(ast["left"], environment) - evaluate(ast["right"], environment)
+    elif ast["tag"] == "*":
+        return evaluate(ast["left"], environment) * evaluate(ast["right"], environment)
+    elif ast["tag"] == "/":
+        return evaluate(ast["left"], environment) / evaluate(ast["right"], environment)
+    elif ast["tag"] == "print":
+        result = evaluate(ast["expression"], environment)
+        print(result)
+        return None
+    elif ast["tag"] == "statement_list":
+        for statement in ast["statements"]:
+            evaluate(statement, environment)
+        return None
+    elif ast["tag"] == "program":
+        evaluate(ast["statements"], environment)
+        return None
+    else:
+        raise ValueError(f"Unknown AST node: {ast}")
+
+
+def test_evaluate():
+    print("test evaluate()")
+    ast = {"tag": "number", "value": 3}
+    assert evaluate(ast, {}) == 3
+    ast = {
+        "tag": "+",
+        "left": {"tag": "number", "value": 3},
+        "right": {"tag": "number", "value": 4},
+    }
+    assert evaluate(ast, {}) == 7
+    ast = {
+        "tag": "*",
+        "left": {
+            "tag": "+",
+            "left": {"tag": "number", "value": 3},
+            "right": {"tag": "number", "value": 4},
+        },
+        "right": {"tag": "number", "value": 5},
+    }
+    assert evaluate(ast, {}) == 35
+    tokens = tokenizer.tokenize("3*(4+5)")
+    ast, tokens = parser.parse_expression(tokens)
+    assert evaluate(ast, {}) == 27
+    tokens = tokenizer.tokenize("-1.5+2")
+    ast, tokens = parser.parse_expression(tokens)
+    assert evaluate(ast, {}) == 0.5
+
+
+def test_evaluate_environments():
+    print("test evaluate() with environments")
+    ast = {"tag": "identifier", "value": "x"}
+    assert evaluate(ast, {"x": 3}) == 3
+    tokens = tokenizer.tokenize("3*(x+5)")
+    ast, tokens = parser.parse_expression(tokens)
+    environment = {"x": 4}
+    assert evaluate(ast, environment) == 27
+    try:
+        evaluate(ast, {})
+    except ValueError as error:
+        assert str(error) == "Unknown identifier: x"
+    else:
+        raise Exception("Expected ValueError for undefined identifier")
+    tokens = tokenizer.tokenize("x*(z+y)")
+    ast, tokens = parser.parse_expression(tokens)
+    environment = {"$PARENT": {"z": 5}, "x": 4, "y": 3}
+    assert evaluate(ast, environment) == 32
+    tokens = tokenizer.tokenize("x*(z+y)")
+    ast, tokens = parser.parse_expression(tokens)
+    environment = {
+        "$PARENT": {
+            "$PARENT": {"z": 5},
+        },
+        "x": 4,
+        "y": 3,
+    }
+    assert evaluate(ast, environment) == 32
+
+
+def test_evaluate_assignments():
+    tokens = tokenizer.tokenize("z=3*(x+5)")
+    ast, tokens = parser.parse_statement(tokens)
+    environment = {"x": 4}
+    assert evaluate(ast, environment) == None
+    print(environment)
+    assert environment == {"x": 4, "z": 27}
+    tokens = tokenizer.tokenize("z=-1.5")
+    ast, tokens = parser.parse_statement(tokens)
+    environment = {}
+    assert evaluate(ast, environment) == None
+    assert environment == {"z": -1.5}
+
+
+def test_evaluate_program():
+    print("test evaluate() program")
+    tokens = tokenizer.tokenize("x=-2.5;print x")
+    ast = parser.parse(tokens)
+    environment = {}
+    assert evaluate(ast, environment) == None
+    assert environment == {"x": -2.5}
+
+
+if __name__ == "__main__":
+    test_evaluate()
+    test_evaluate_environments()
+    test_evaluate_assignments()
+    test_evaluate_program()
+    print("done.")
+</code></pre>
+        </details>
+        <details class="source-file" id="file-example-v">
+            <summary>example.v</summary>
+            <pre><code>x = 2;
+print x;
+y = x + 3 * 4;
+print y;
+</code></pre>
+        </details>
+        <details class="source-file" id="file-parser-py">
+            <summary>parser.py</summary>
+            <pre><code># parser.py
+
+from tokenizer import tokenize
+from pprint import pprint
+
+# EBNF
+
+#   program = statement_list
+#   statement_list = { ";" } statement { ";" { ";" } statement } { ";" }
+#   print_statement = "print" expression
+#   assignment_statement = &lt;identifier&gt; "=" expression
+#   statement = assignment_statement | print_statement
+
+#   expression = term { ("+" | "-") term }
+#   term = unary { ("*" | "/") unary }
+#   unary = "-" unary | factor
+#   factor = &lt;number&gt; | &lt;identifier&gt; | "(" expression ")"
+
+
+def parse_factor(tokens):
+    # factor = &lt;number&gt; | &lt;identifier&gt; | "(" expression ")"
+    token = tokens[0]
+    if token["tag"] == "number":
+        node = {"tag": "number", "value": token["value"]}
+        return node, tokens[1:]
+    if token["tag"] == "identifier":
+        node = {"tag": "identifier", "value": token["value"]}
+        return node, tokens[1:]
+    if token["tag"] == "(":
+        node, tokens = parse_expression(tokens[1:])
+        if tokens[0]["tag"] != ")":
+            raise SyntaxError(f"Expected ')', got {tokens[0]}")
+        return node, tokens[1:]
+    raise SyntaxError(f"Expected factor, got {tokens[0]}")
+
+
+def test_parse_factor():
+    """factor = &lt;number&gt;"""
+    print("test parse_factor()")
+    tokens = tokenize("3")
+    ast, tokens = parse_factor(tokens)
+    assert ast == {"tag": "number", "value": 3}
+    assert tokens == [{"tag": None, "line": 1, "column": 2}]
+    tokens = tokenize("(3+4)")
+    ast, tokens = parse_factor(tokens)
+    assert ast == {
+        "tag": "+",
+        "left": {"tag": "number", "value": 3},
+        "right": {"tag": "number", "value": 4},
+    }
+    assert tokens == [{"tag": None, "line": 1, "column": 6}]
+    tokens = tokenize("(x+4)")
+    ast, tokens = parse_factor(tokens)
+    assert ast == {
+        "tag": "+",
+        "left": {"tag": "identifier", "value": "x"},
+        "right": {"tag": "number", "value": 4},
+    }
+    assert tokens[0]["tag"] == None
+
+
+def parse_unary(tokens):
+    """unary = "-" unary | factor"""
+    if tokens[0]["tag"] == "-":
+        operand, tokens = parse_unary(tokens[1:])
+        return {"tag": "unary-", "operand": operand}, tokens
+    return parse_factor(tokens)
+
+
+def test_parse_unary():
+    """unary = "-" unary | factor"""
+    print("test parse_unary()")
+    tokens = tokenize("3")
+    ast, tokens = parse_unary(tokens)
+    assert ast == {"tag": "number", "value": 3}
+    assert tokens == [{"tag": None, "line": 1, "column": 2}]
+    tokens = tokenize("-3")
+    ast, tokens = parse_unary(tokens)
+    assert ast == {"tag": "unary-", "operand": {"tag": "number", "value": 3}}
+    assert tokens == [{"tag": None, "line": 1, "column": 3}]
+    tokens = tokenize("--3")
+    ast, tokens = parse_unary(tokens)
+    assert ast == {
+        "tag": "unary-",
+        "operand": {"tag": "unary-", "operand": {"tag": "number", "value": 3}},
+    }
+    assert tokens == [{"tag": None, "line": 1, "column": 4}]
+    tokens = tokenize("-(3+4)")
+    ast, tokens = parse_unary(tokens)
+    assert ast == {
+        "tag": "unary-",
+        "operand": {
+            "tag": "+",
+            "left": {"tag": "number", "value": 3},
+            "right": {"tag": "number", "value": 4},
+        },
+    }
+    assert tokens == [{"tag": None, "line": 1, "column": 7}]
+
+
+def parse_term(tokens):
+    """term = unary { ("*" | "/") unary }"""
+    left, tokens = parse_unary(tokens)
+    while tokens[0]["tag"] in ["*", "/"]:
+        op = tokens[0]["tag"]
+        right, tokens = parse_unary(tokens[1:])
+        left = {"tag": op, "left": left, "right": right}
+    return left, tokens
+
+
+def test_parse_term():
+    """term = unary { ("*" | "/") unary }"""
+    print("test parse_term()")
+    tokens = tokenize("3")
+    ast, tokens = parse_term(tokens)
+    assert ast == {"tag": "number", "value": 3}
+    assert tokens == [{"tag": None, "line": 1, "column": 2}]
+    tokens = tokenize("3*4")
+    ast, tokens = parse_term(tokens)
+    assert ast == {
+        "left": {"tag": "number", "value": 3},
+        "right": {"tag": "number", "value": 4},
+        "tag": "*",
+    }
+    assert tokens == [{"column": 4, "line": 1, "tag": None}]
+    tokens = tokenize("3/4")
+    ast, tokens = parse_term(tokens)
+    assert ast == {
+        "left": {"tag": "number", "value": 3},
+        "right": {"tag": "number", "value": 4},
+        "tag": "/",
+    }
+    assert tokens == [{"column": 4, "line": 1, "tag": None}]
+    tokens = tokenize("3/4*5")
+    ast, tokens = parse_term(tokens)
+    assert ast == {
+        "left": {
+            "left": {"tag": "number", "value": 3},
+            "right": {"tag": "number", "value": 4},
+            "tag": "/",
+        },
+        "right": {"tag": "number", "value": 5},
+        "tag": "*",
+    }
+    assert tokens == [{"column": 6, "line": 1, "tag": None}]
+    tokens = tokenize("3*-2")
+    ast, tokens = parse_term(tokens)
+    assert ast == {
+        "left": {"tag": "number", "value": 3},
+        "right": {"tag": "unary-", "operand": {"tag": "number", "value": 2}},
+        "tag": "*",
+    }
+    assert tokens == [{"column": 5, "line": 1, "tag": None}]
+
+
+def parse_expression(tokens):
+    """expression = term { ("+" | "-") term }"""
+    left, tokens = parse_term(tokens)
+    while tokens[0]["tag"] in ["+", "-"]:
+        op = tokens[0]["tag"]
+        right, tokens = parse_term(tokens[1:])
+        left = {"tag": op, "left": left, "right": right}
+    return left, tokens
+
+
+def test_parse_expression():
+    """expression = term { ("+" | "-") term }"""
+    print("test parse_expression()")
+    tokens = tokenize("3")
+    ast, tokens = parse_expression(tokens)
+    assert ast == {"tag": "number", "value": 3}
+    assert tokens == [{"tag": None, "line": 1, "column": 2}]
+    tokens = tokenize("3*4+5-6")
+    ast, tokens = parse_expression(tokens)
+    assert ast == {
+        "left": {
+            "left": {
+                "left": {"tag": "number", "value": 3},
+                "right": {"tag": "number", "value": 4},
+                "tag": "*",
+            },
+            "right": {"tag": "number", "value": 5},
+            "tag": "+",
+        },
+        "right": {"tag": "number", "value": 6},
+        "tag": "-",
+    }
+    assert tokens == [{"column": 8, "line": 1, "tag": None}]
+    tokens = tokenize("-1.5+2")
+    ast, tokens = parse_expression(tokens)
+    assert ast == {
+        "left": {"tag": "unary-", "operand": {"tag": "number", "value": 1.5}},
+        "right": {"tag": "number", "value": 2},
+        "tag": "+",
+    }
+    assert tokens == [{"column": 7, "line": 1, "tag": None}]
+
+
+def parse_print_statement(tokens):
+    # print_statement = "print" expression
+    assert tokens[0]["tag"] == "print", "Expected 'print'"
+    tokens = tokens[1:]
+    ast, tokens = parse_expression(tokens)
+    return {"tag": "print", "expression": ast}, tokens
+
+
+def test_parse_print_statement():
+    print("test parse_print_statement()")
+    tokens = tokenize("print 1")
+    ast, tokens = parse_print_statement(tokens)
+    assert ast == {"tag": "print", "expression": {"tag": "number", "value": 1}}
+    assert tokens[0]["tag"] == None
+    tokens = tokenize("print 1+1*3")
+    ast, tokens = parse_print_statement(tokens)
+    assert tokens[0]["tag"] == None
+
+
+def parse_assignment_statement(tokens):
+    # assignment_statement = &lt;identifier&gt; "=" expression
+    assert tokens[0]["tag"] == "identifier", "Expected &lt;identifier&gt;"
+    identifier = tokens[0]["value"]
+    tokens = tokens[1:]
+    assert tokens[0]["tag"] == "=", "Expected '=' for assignment"
+    tokens = tokens[1:]
+    ast, tokens = parse_expression(tokens)
+    return {"tag": "assign", "target": identifier, "expression": ast}, tokens
+
+
+def test_parse_assignment_statement():
+    print("test parse_assignment_statement()")
+    tokens = tokenize("x = 1")
+    ast, tokens = parse_assignment_statement(tokens)
+    assert ast == {
+        "tag": "assign",
+        "target": "x",
+        "expression": {"tag": "number", "value": 1},
+    }
+    assert tokens[0]["tag"] == None
+    tokens = tokenize("x = 1+1*3")
+    ast, tokens = parse_assignment_statement(tokens)
+    assert tokens[0]["tag"] == None
+
+
+def parse_statement(tokens):
+    # statement = assignment_statement | print_statement
+    if tokens[0]["tag"] == "print":
+        return parse_print_statement(tokens)
+    if tokens[0]["tag"] == "identifier":
+        return parse_assignment_statement(tokens)
+    raise SyntaxError(f"Expected statement, got {tokens[0]}")
+
+
+def test_parse_statement():
+    print("test parse_statement()")
+    tokens = tokenize("x = 1")
+    ast1, _ = parse_statement(tokens)
+    ast2, _ = parse_assignment_statement(tokens)
+    assert ast1 == ast2
+    tokens = tokenize("print 1")
+    ast1, _ = parse_statement(tokens)
+    ast2, _ = parse_print_statement(tokens)
+    assert ast1 == ast2
+    tokens = tokenize("x = 1")
+    assert parse_statement(tokens) == parse_assignment_statement(tokens)
+
+
+def parse_statement_list(tokens):
+    # statement_list = { ";" } statement { ";" { ";" } statement } { ";" }
+    statements = []
+
+    # leading semicolons
+    while tokens[0]["tag"] == ";":
+        tokens = tokens[1:]
+
+    # first statement
+    statement, tokens = parse_statement(tokens)
+    statements.append(statement)
+
+    while True:
+        # require at least one semicolon to start another statement
+        if tokens[0]["tag"] != ";":
+            break
+
+        # consume one-or-more semicolons
+        while tokens[0]["tag"] == ";":
+            tokens = tokens[1:]
+
+        # trailing semicolons allowed
+        if tokens[0]["tag"] is None:
+            break
+
+        statement, tokens = parse_statement(tokens)
+        statements.append(statement)
+
+    return {"tag": "statement_list", "statements": statements}, tokens
+
+
+def test_parse_statement_list():
+    print("test parse_statement_list()")
+
+    # a statement list contains at least one statement
+    for source in ["", ";;;"]:
+        try:
+            parse_statement_list(tokenize(source))
+        except SyntaxError:
+            pass
+        else:
+            raise Exception("Expected SyntaxError: statement list cannot be empty")
+
+    # single statement, no semicolon
+    tokens = tokenize("x=3")
+    ast, rest = parse_statement_list(tokens)
+    assert ast["tag"] == "statement_list"
+    assert len(ast["statements"]) == 1
+    assert ast["statements"][0]["tag"] == "assign"
+    assert ast["statements"][0]["target"] == "x"
+    assert rest[0]["tag"] is None
+
+    # single statement, trailing semicolon(s)
+    tokens = tokenize("x=3;")
+    ast, rest = parse_statement_list(tokens)
+    assert len(ast["statements"]) == 1
+    assert ast["statements"][0]["tag"] == "assign"
+    assert rest[0]["tag"] is None
+
+    tokens = tokenize("x=3;;;")
+    ast, rest = parse_statement_list(tokens)
+    assert len(ast["statements"]) == 1
+    assert ast["statements"][0]["tag"] == "assign"
+    assert rest[0]["tag"] is None
+
+    # leading semicolons
+    tokens = tokenize(";;;x=3")
+    ast, rest = parse_statement_list(tokens)
+    assert len(ast["statements"]) == 1
+    assert ast["statements"][0]["tag"] == "assign"
+    assert rest[0]["tag"] is None
+
+    # two statements, single separator
+    tokens = tokenize("x=3;print x")
+    ast, rest = parse_statement_list(tokens)
+    assert len(ast["statements"]) == 2
+    assert ast["statements"][0]["tag"] == "assign"
+    assert ast["statements"][1]["tag"] == "print"
+    assert rest[0]["tag"] is None
+
+    # two statements, semicolon runs, plus trailing semicolons
+    tokens = tokenize(";;;x=3;;;print x;;;")
+    ast, rest = parse_statement_list(tokens)
+    assert len(ast["statements"]) == 2
+    assert ast["statements"][0]["tag"] == "assign"
+    assert ast["statements"][0]["target"] == "x"
+    assert ast["statements"][1]["tag"] == "print"
+    assert rest[0]["tag"] is None
+
+    # missing semicolon between statements: statement_list stops and leaves rest
+    tokens = tokenize("x=3print x")
+    ast, rest = parse_statement_list(tokens)
+    assert len(ast["statements"]) == 1
+    assert ast["statements"][0]["tag"] == "assign"
+    assert rest[0]["tag"] == "print"
+
+    # after a separator run, next token must start a statement
+    try:
+        tokens = tokenize("x=3;;;4")
+        parse_statement_list(tokens)
+    except SyntaxError:
+        pass
+    else:
+        raise Exception("Expected SyntaxError: number cannot start a statement")
+
+    # trailing separators are allowed
+    tokens = tokenize("x=3;;;")
+    ast, rest = parse_statement_list(tokens)
+    assert len(ast["statements"]) == 1
+    assert rest[0]["tag"] is None
+
+def parse_program(tokens):
+    ast, tokens = parse_statement_list(tokens)
+    return {"tag": "program", "statements": ast}, tokens
+
+
+def test_parse_program():
+    print("test_parse_program()")
+    tokens = tokenize("x=3;print x")
+    ast1, _ = parse_statement_list(tokens)
+    ast2, _ = parse_program(tokens)
+    assert ast2 == {"tag": "program", "statements": ast1}
+
+
+def parse(tokens):
+    ast, tokens = parse_program(tokens)
+    if tokens[0]["tag"] is not None:
+        raise SyntaxError(f"Unexpected token: {tokens[0]}")
+    return ast
+
+
+def test_parse():
+    print("test_parse()")
+    tokens = tokenize("x=3;print x")
+    ast, _ = parse_program(tokens)
+    assert parse(tokens) == ast
+
+
+if __name__ == "__main__":
+    test_parse_factor()
+    test_parse_unary()
+    test_parse_term()
+    test_parse_expression()
+    test_parse_print_statement()
+    test_parse_assignment_statement()
+    test_parse_statement()
+    test_parse_statement_list()
+    test_parse_program()
+    test_parse()
+    print("done.")
+</code></pre>
+        </details>
+        <details class="source-file" id="file-runner-py">
+            <summary>runner.py</summary>
+            <pre><code>import sys
+
+from tokenizer import tokenize
+from parser import parse
+from evaluator import evaluate
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python runner.py &lt;program&gt;")
+        sys.exit(1)
+    program = sys.argv[1]
+    if program.endswith((".t", ".v")):
+        with open(program, "r") as f:
+            program = f.read().strip()
+    tokens = tokenize(program)
+    ast = parse(tokens)
+    evaluate(ast, {})
+</code></pre>
+        </details>
+        <details class="source-file" id="file-tokenizer-py">
+            <summary>tokenizer.py</summary>
+            <pre><code>import re
+from pprint import pprint
+
+# p = re.compile("ab*")
+
+# if p.match("abbbbbbb") :
+#     print("match")
+# else:
+#     print("not match")
+
+patterns = [
+    (r"\s+", "whitespace"),
+    (r"\d*\.\d+|\d+\.\d*|\d+", "number"),
+    (r"\+", "+"),
+    (r"\-", "-"),
+    (r"\/", "/"),
+    (r"\*", "*"),
+    (r"\(", "("),
+    (r"\)", ")"),
+    (r"\=", "="),
+    (r"\;", ";"),
+    (r"print\b", "print"),
+    (r"[a-zA-Z_][\w]*", "identifier"),
+    (r".", "error"),
+]
+
+patterns = [(re.compile(p), tag) for p, tag in patterns]
+
+
+def tokenize(characters):
+    "Tokenize a string using the patterns above"
+    tokens = []
+    position = 0
+    line = 1
+    column = 1
+    current_tag = None
+
+    while position &lt; len(characters):
+        for pattern, tag in patterns:
+            match = pattern.match(characters, position)
+            if match:
+                current_tag = tag
+                break
+        assert match is not None
+        value = match.group(0)
+
+        if current_tag == "error":
+            raise Exception(f"Unexpected character: {value!r}")
+
+        if tag != "whitespace":
+            token = {"tag": current_tag, "line": line, "column": column}
+            if current_tag == "number":
+                if "." in value:
+                    token["value"] = float(value)
+                else:
+                    token["value"] = int(value)
+            if current_tag == "identifier":
+                token["value"] = value
+            tokens.append(token)
+
+        # advance position and update line/column
+        for ch in value:
+            if ch == "\n":
+                line += 1
+                column = 1
+            else:
+                column += 1
+        position = match.end()
+
+    tokens.append({"tag": None, "line": line, "column": column})
+    return tokens
+
+
+def test_digits():
+    print("test tokenize digits")
+    t = tokenize("123")
+    assert t[0]["tag"] == "number"
+    assert t[0]["value"] == 123
+    assert t[1]["tag"] is None
+    t = tokenize("1")
+    assert t[0]["tag"] == "number"
+    assert t[0]["value"] == 1
+    assert t[1]["tag"] is None
+
+
+def test_floats():
+    print("test tokenize floats")
+    for text, expected in [("1.5", 1.5), (".5", 0.5), ("5.", 5.0)]:
+        t = tokenize(text)
+        assert t[0]["tag"] == "number"
+        assert t[0]["value"] == expected
+        assert t[1]["tag"] is None
+
+
+def test_operators():
+    print("test tokenize operators")
+    t = tokenize("+ - * / ( ) = ;")
+    tags = [tok["tag"] for tok in t]
+    assert tags == ["+", "-", "*", "/", "(", ")", "=", ";", None]
+
+
+def test_keywords():
+    print("test tokenize keywords")
+    t = tokenize("print")
+    tags = [tok["tag"] for tok in t]
+    assert tags == ["print", None]
+
+
+def test_identifiers():
+    print("test tokenize identifiers")
+    t = tokenize("foo bar baz")
+    tags = [tok["tag"] for tok in t]
+    assert tags == ["identifier", "identifier", "identifier", None]
+    assert t[0]["value"] == "foo"
+    assert t[2]["value"] == "baz"
+
+
+def test_expressions():
+    print("test tokenize expressions")
+    t = tokenize("1+222*3")
+    assert t[0]["tag"] == "number" and t[0]["value"] == 1
+    assert t[1]["tag"] == "+"
+    assert t[2]["tag"] == "number" and t[2]["value"] == 222
+    assert t[3]["tag"] == "*"
+    assert t[4]["tag"] == "number" and t[4]["value"] == 3
+    assert t[5]["tag"] is None
+
+
+def test_whitespace():
+    print("test tokenize whitespace")
+    t = tokenize("1 +\t2  \n*    3")
+    assert t[0]["tag"] == "number" and t[0]["value"] == 1
+    assert t[1]["tag"] == "+"
+    assert t[2]["tag"] == "number" and t[2]["value"] == 2
+    assert t[3]["tag"] == "*"
+    assert t[4]["tag"] == "number" and t[4]["value"] == 3
+    assert t[5]["tag"] is None
+
+
+def test_error():
+    print("test tokenize error")
+    try:
+        t = tokenize("1@@@ +\t2  \n*    3")
+    except Exception as e:
+        assert str(e) == "Unexpected character: '@'"
+        return
+    assert Exception("Error did not happen.")
+
+
+if __name__ == "__main__":
+    test_digits()
+    test_floats()
+    test_operators()
+    test_keywords()
+    test_expressions()
+    test_identifiers()
+    test_whitespace()
+    test_error()
+    print("done.")
+</code></pre>
+        </details>
+        <details class="source-file" id="file-vertex">
+            <summary>vertex</summary>
+            <pre><code>#!/usr/bin/env bash
+exec python3 "$(dirname "$0")/runner.py" "$@"
+</code></pre>
+        </details>
+
         <p><a href="../../index.html">Back to course index</a></p>
     </main>
 </body>
