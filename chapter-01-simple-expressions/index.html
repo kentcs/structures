@@ -27,6 +27,8 @@
             color: #667eea;
             margin-bottom: 18px;
             font-weight: 700;
+            font-size: 42px;
+            line-height: 1.1;
         }
 
         .intro {
@@ -35,6 +37,17 @@
             line-height: 1.55;
             margin-bottom: 30px;
             max-width: 780px;
+        }
+
+        .chapter-label {
+            color: #764ba2;
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .chapter-title {
+            white-space: nowrap;
         }
 
         .toc-section {
@@ -78,14 +91,15 @@
 
 <body>
     <div class="container">
-        <h1>Chapter 1: Simple Expressions</h1>
+        <div class="chapter-label">Chapter 1</div>
+        <h1 class="chapter-title">Simple Expressions</h1>
         <p class="intro">Vertex&#x27;s tokenizer, expression trees, recursive-descent parser, and evaluator.</p>
 
         <div class="toc-section">
             <h2>Contents</h2>
             <a href="chapter-01-simple-expressions.pdf" class="toc-link">
-                Chapter 1: Simple Expressions
-                <div class="description">Workbook chapter.</div>
+                Simple Expressions
+                <div class="description">Chapter 1 workbook.</div>
             </a>
             <a href="slides/slides-01-simple-expressions.html" class="toc-link">
                 Slides
