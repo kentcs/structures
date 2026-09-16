@@ -5,13 +5,13 @@
 <link rel="stylesheet" href="slide-assets/slides.css">
 </head><body><div class="reveal"><div class="slides"><section><h1 id="simple-expressions-in-vertex">Simple Expressions in Vertex</h1>
 <p>How <code>3+4*5</code> becomes <code>23</code></p>
-<aside class="notes">Vertex is the language name. Topic source: ../../topic-01-simple-expressions/. Chapter source: chapter-01-simple-expressions.md. Story: run one expression, identify tokens, build its tree, evaluate it, locate errors, test the implementation. Current language: integer and floating-point numbers, binary arithmetic, unary minus, and parentheses. No variables, output statements, or assertions yet. Python implements Vertex and prints its final result.</aside></section>
+<aside class="notes">Vertex is the language name. Topic source: ../../code/01-simple-expressions/. Chapter source: chapter-01-simple-expressions.md. Story: run one expression, identify tokens, build its tree, evaluate it, locate errors, test the implementation. Current language: integer and floating-point numbers, binary arithmetic, unary minus, and parentheses. No variables, output statements, or assertions yet. Python implements Vertex and prints its final result.</aside></section>
 <section><h2 id="running-vertex">Running Vertex</h2>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./vertex</span> <span class="st">&#39;3+4*5&#39;</span></span></code></pre></div>
 <pre class="text"><code>23</code></pre>
 <p>Or read the supplied expression: <code>./vertex example.v</code></p>
-<aside class="notes">Run from topic-01-simple-expressions. Executable launches runner.py with Python 3. Quotes keep spaces and operators inside one shell argument. A .v or .t argument selects a file. The whole file is one expression, not a sequence of statements. Runner prints the result using Python. That does not give Vertex an output statement. Parenthesized example: ./vertex &#x27;(3+4)*5&#x27; returns 35.</aside></section>
+<aside class="notes">Run from code/01-simple-expressions. Executable launches runner.py with Python 3. Quotes keep spaces and operators inside one shell argument. A .v or .t argument selects a file. The whole file is one expression, not a sequence of statements. Runner prints the result using Python. That does not give Vertex an output statement. Parenthesized example: ./vertex &#x27;(3+4)*5&#x27; returns 35.</aside></section>
 <section><h2 id="the-interpreters-stages">The Interpreter’s Stages</h2>
 <table>
 <thead>
