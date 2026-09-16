@@ -5,13 +5,13 @@
 <link rel="stylesheet" href="slide-assets/slides.css">
 </head><body><div class="reveal"><div class="slides"><section><h1 id="simple-expressions-in-vertex">Simple Expressions in Vertex</h1>
 <p>How <code>3+4*5</code> becomes <code>23</code></p>
-<aside class="notes">Vertex is the language name. Topic source: ../../code/01-simple-expressions/. Chapter source: chapter-01-simple-expressions.md. Story: run one expression, identify tokens, build its tree, evaluate it, locate errors, test the implementation. Current language: integer and floating-point numbers, binary arithmetic, unary minus, and parentheses. No variables, output statements, or assertions yet. Python implements Vertex and prints its final result.</aside></section>
+</section>
 <section><h2 id="running-vertex">Running Vertex</h2>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./vertex</span> <span class="st">&#39;3+4*5&#39;</span></span></code></pre></div>
 <pre class="text"><code>23</code></pre>
 <p>Or read the supplied expression: <code>./vertex example.v</code></p>
-<aside class="notes">Run from code/01-simple-expressions. Executable launches runner.py with Python 3. Quotes keep spaces and operators inside one shell argument. A .v or .t argument selects a file. The whole file is one expression, not a sequence of statements. Runner prints the result using Python. That does not give Vertex an output statement. Parenthesized example: ./vertex &#x27;(3+4)*5&#x27; returns 35.</aside></section>
+</section>
 <section><h2 id="the-interpreters-stages">The Interpreter’s Stages</h2>
 <table>
 <thead>
@@ -43,7 +43,7 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="
 class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>tokens <span class="op">=</span> tokenize(expression)</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>ast <span class="op">=</span> parse(tokens)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> evaluate(ast)</span></code></pre></div>
-<aside class="notes">Abstract syntax tree (AST): structure needed to represent the computation. runner.py connects the stages. Tokenizer recognizes pieces, parser establishes grouping, evaluator computes. Syntax describes allowed arrangements. Semantics describes their meaning. Each stage has a different input and a different responsibility.</aside></section>
+</section>
 <section><h2 id="tokenizing-345">Tokenizing <code>3+4*5</code></h2>
 <table>
 <thead>
@@ -86,7 +86,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 </tr>
 </tbody>
 </table>
-<aside class="notes">All tokens here are on line 1. Actual tokens are dictionaries with tag, line, column, and value only for numbers. Whitespace is consumed but not emitted. Position tracking still includes it. End marker is a dictionary with tag None, not a bare None. Token sequence preserves order but does not yet encode precedence.</aside></section>
+</section>
 <section><h2 id="recognizing-a-number">Recognizing a Number</h2>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">r&quot;</span><span class="er">\</span><span class="co">d*</span><span class="er">\</span><span class="co">.</span><span class="er">\</span><span class="co">d+|</span><span class="er">\</span><span class="co">d+</span><span class="er">\</span><span class="co">.</span><span class="er">\</span><span class="co">d*|</span><span class="er">\</span><span class="co">d+&quot;</span></span></code></pre></div>
@@ -113,7 +113,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 </tbody>
 </table>
 <p>The tokenizer tries patterns at the current position.</p>
-<aside class="notes">Regular expressions describe character patterns. Raw Python strings preserve backslashes conveniently. Digit repetition: plus requires one or more. Decimal alternatives appear before the integer alternative so 12.5 does not stop at 12. First matching pattern wins; this implementation does not compare lengths across all rules. re.compile prepares patterns, pattern.match starts exactly at position. Catch-all error rule follows valid token patterns. Source: tokenizer.py. Reference: https://docs.python.org/3/library/re.html.</aside></section>
+</section>
 <section><h2 id="tokens-carry-values">Tokens Carry Values</h2>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>{<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;number&quot;</span>, <span class="st">&quot;line&quot;</span>: <span class="dv">1</span>, <span class="st">&quot;column&quot;</span>: <span class="dv">1</span>, <span class="st">&quot;value&quot;</span>: <span class="dv">3</span>}</span></code></pre></div>
@@ -125,7 +125,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a hr
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        token[<span class="st">&quot;value&quot;</span>] <span class="op">=</span> <span class="bu">int</span>(value)</span></code></pre></div>
 <p>The text <code>"3"</code> becomes <code>3</code>; <code>"12.5"</code>
 becomes <code>12.5</code>.</p>
-<aside class="notes">Source excerpt uses value for matched text, then token value for converted number. Operators need only tags and locations. Minus is its own token. Recognition of &#x27;-&#x27; does not by itself decide whether the source uses subtraction or unary negation. Line and column advance through all matched characters, including whitespace and newlines.</aside></section>
+</section>
 <section><h2 id="vertexs-expression-grammar">Vertex’s Expression Grammar</h2>
 <pre class="text"><code>expression = term { (&quot;+&quot; | &quot;-&quot;) term }
 term = unary { (&quot;*&quot; | &quot;/&quot;) unary }
@@ -133,12 +133,12 @@ unary = &quot;-&quot; unary | factor
 factor = &lt;number&gt; | &quot;(&quot; expression &quot;)&quot;</code></pre>
 <p>Extended Backus-Naur Form (EBNF)</p>
 <p>Braces repeat. A vertical bar separates alternatives.</p>
-<aside class="notes">Quoted punctuation is actual language syntax. Grammar names identify larger pieces. A single number qualifies as a factor, unary expression, term, and expression. Expression asks for complete terms; term asks for complete unary expressions. Multiplication precedence comes from that call structure. Unary minus binds tighter than multiplication because term receives complete unary operands. Parentheses recurse to a full expression.</aside></section>
+</section>
 <section><h2 id="the-tree-for-345">The Tree for <code>3+4*5</code></h2>
 <p><img src="slide-assets/diagram-08.svg"
 alt="The Tree for 3+4*5" /></p>
 <p>The right subtree supplies <code>20</code> to the addition.</p>
-<aside class="notes">Abstract syntax tree uses number leaves and binary operator nodes. Each operator node has tag, left, right. No whitespace or parenthesis nodes. Source positions are not copied into AST nodes. For (3+4)*5 the root is multiplication, with addition as its left child. Parentheses disappear, but their grouping survives. Diagram matches the actual parser&#x27;s structure.</aside></section>
+</section>
 <section><h2 id="parsing-a-factor">Parsing a Factor</h2>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> token[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;number&quot;</span>:</span>
@@ -147,7 +147,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 <p>Input: <code>3 + 4</code></p>
 <p>Returned node: <code>3</code><br />
 Remaining tokens: <code>+ 4</code> and the end marker</p>
-<aside class="notes">Each parser helper returns a node and unused tokens. Slicing returns a new list instead of deleting tokens in place. Recursive-descent parser functions correspond to grammar rules. The caller resumes with the returned remainder. parse_factor begins by reading tokens[0]. Missing operand or unsupported factor raises SyntaxError.</aside></section>
+</section>
 <section><h2 id="parentheses-re-enter-the-grammar">Parentheses Re-enter the
 Grammar</h2>
 <div class="sourceCode" id="cb1"><pre
@@ -157,7 +157,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">SyntaxError</span>(<span class="ss">f&quot;Expected &#39;)&#39;, got </span><span class="sc">{</span>tokens[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> node, tokens[<span class="dv">1</span>:]</span></code></pre></div>
 <p><code>(3+4)*5</code> groups the addition first.</p>
-<aside class="notes">Consume opening parenthesis, parse inner expression, require and consume closing parenthesis. Return inner node directly. The expression helper leaves closing parenthesis for the factor caller. Recursion permits nested parentheses. No explicit parenthesis node in evaluator. Reference background: https://en.wikipedia.org/wiki/Recursive_descent_parser.</aside></section>
+</section>
 <section><h2 id="building-a-term">Building a Term</h2>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>left, tokens <span class="op">=</span> parse_unary(tokens)</span>
@@ -168,7 +168,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> left, tokens</span></code></pre></div>
 <p><code>3*-2</code> parses as multiplication with a negated right
 operand.</p>
-<aside class="notes">Body of parse_term. Previous tree becomes the next node&#x27;s left child. That loop establishes left associativity. Different from 8/(4/2), which returns 4.0. parse_term requests unary operands, so multiplication and division can use negated values. parse_expression uses the same loop pattern for plus/minus but requests terms as operands. Precedence is between levels. Associativity is grouping within a level. Division and subtraction distinguish grouping more clearly than addition.</aside></section>
+</section>
 <section><h2 id="unary-minus">Unary Minus</h2>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;-&quot;</span>:</span>
@@ -176,7 +176,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;unary-&quot;</span>, <span class="st">&quot;operand&quot;</span>: operand}, tokens</span></code></pre></div>
 <p><code>-5</code>, <code>3*-2</code>, and <code>-(3+4)</code> all use
 the same rule.</p>
-<aside class="notes">Unary minus is a parser decision, not a tokenizer decision. The tokenizer emits the same minus token for subtraction and negation. Recursive parse_unary handles repeated negation, then falls back to parse_factor. This keeps unary minus tighter than multiplication and separate from binary subtraction.</aside></section>
+</section>
 <section><h2 id="requiring-the-whole-expression">Requiring the Whole
 Expression</h2>
 <div class="sourceCode" id="cb1"><pre
@@ -185,7 +185,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">SyntaxError</span>(<span class="ss">f&quot;Unexpected token: </span><span class="sc">{</span>tokens[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> ast</span></code></pre></div>
 <p><code>3 4</code> must fail after the parser reads <code>3</code>.</p>
-<aside class="notes">Body of public parse function. A helper can successfully parse a prefix without validating all input. At top level the end marker is required. Inside parentheses, the caller instead expects a closing parenthesis. This is why helper and public-parser contracts differ. Runner calls parse, not just parse_expression.</aside></section>
+</section>
 <section><h2 id="evaluating-the-tree">Evaluating the Tree</h2>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> ast[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;number&quot;</span>:</span>
@@ -198,7 +198,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="op">-</span>evaluate(ast[<span class="st">&quot;operand&quot;</span>])</span></code></pre></div>
 <p>For <code>3+4*5</code>: the children supply <code>3</code> and
 <code>20</code>.</p>
-<aside class="notes">Excerpt from evaluate omits subtraction, division, and unknown-node error. Number is base case. Binary operators recursively evaluate their children then apply Python arithmetic. Unary minus evaluates one operand and negates it. Grouping is already in tree, so evaluator needs no precedence table or parenthesis scan. Python numeric behavior supplies semantics for true division and division-by-zero exceptions. Syntax rules belong to Vertex even though Python provides these operations.</aside></section>
+</section>
 <section><h2 id="where-an-expression-fails">Where an Expression Fails</h2>
 <table>
 <thead>
@@ -236,7 +236,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 </tr>
 </tbody>
 </table>
-<aside class="notes">Rejecting invalid input is required behavior. Valid tokens do not guarantee valid syntax. Valid syntax does not guarantee successful evaluation. Unexpected token errors include dictionaries with source locations; tokenizer error currently reports character without location. Unknown AST node ValueError is a separate guard for malformed trees supplied to evaluator.</aside></section>
+</section>
 <section><h2 id="unit-tests-in-python">Unit Tests in Python</h2>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> tokenizer.py</span>
@@ -244,14 +244,14 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> evaluator.py</span></code></pre></div>
 <p>Vertex has no output or assertions yet.</p>
 <p>Python unit tests check its implementation.</p>
-<aside class="notes">No Vertex chapter-test-suite.t. Existing tests run under each module&#x27;s main guard and use Python assert. Success reaches done. Parser tests check AST dictionaries and remaining tokens; evaluator tests include manual trees and parsed input. Addition may hide grouping mistakes. Useful extra cases: 8-3-2, 8/4/2, 3 4, invalid factors, division by zero. Practice stays in the chapter. Testing an unsupported construct should expect rejection, not silently assume future features exist.</aside></section>
+</section>
 <section><h2 id="following-a-wrong-result">Following a Wrong Result</h2>
 <p><strong>Tokens:</strong> Did we recognize the intended values?</p>
 <p><strong>Tree:</strong> Did we group the operations correctly?</p>
 <p><strong>Evaluation:</strong> Did each node compute the right
 value?</p>
 <p>Inspect the intermediate result before changing the code.</p>
-<aside class="notes">Trace 3+4*5 from characters to 23, then compare (3+4)*5. Tokenization recognizes pieces, parsing determines structure, evaluation gives meaning. Next work can extend the language while retaining those boundaries. Durable explanation and extension exercises are in chapter-01-simple-expressions.md. AST background: https://en.wikipedia.org/wiki/Abstract_syntax_tree.</aside></section></div></div>
-<script src="slide-assets/reveal.js"></script><script src="slide-assets/notes.js"></script>
-<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none',plugins:[RevealNotes]});</script>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
 </body></html>
