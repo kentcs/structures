@@ -1,0 +1,18 @@
+print("Chapter 3: Strings and Basic I/O");
+__input = "Ada";
+name = input("What is your name? ");
+greeting = "Hello, " + name + "!";
+print(greeting);
+saved = __output;
+print("Captured output: " + saved);
+print("Input after use: [" + __input + "]");
+print("ha" * 3 + "!");
+__input = "testing";
+line = input();
+print("You entered: " + line);
+__input = "21";
+answer = number(input()) * 2;
+print(answer);
+print("Captured number: " + __output);
+print("As text: " + string(answer));
+print("With a decimal: " + string(answer + number(".5")));

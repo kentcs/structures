@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 3: Strings and Basic I/O</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="strings-and-basic-io">Strings and Basic I/O</h1>
+<p>Text values and observable program behavior</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="a-program-with-text">A Program with Text</h2>
+<pre class="vertex"><code>__input = &quot;Ada&quot;;
+name = input(&quot;Name? &quot;);
+print(&quot;Hello, &quot; + name + &quot;!&quot;);</code></pre>
+<pre class="text"><code>Hello, Ada!</code></pre>
+</section>
+<section><h2 id="literals-and-values">Literals and Values</h2>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"42"</code></td>
+<td>String</td>
+</tr>
+<tr>
+<td><code>42</code></td>
+<td>Integer</td>
+</tr>
+<tr>
+<td><code>""</code></td>
+<td>Empty string</td>
+</tr>
+<tr>
+<td><code>"a\nb"</code></td>
+<td>Text containing a newline</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="the-string-token">The String Token</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>(<span class="vs">r&#39;&quot;</span>(?:<span class="ch">\\</span><span class="pp">[^</span><span class="ch">\r\n</span><span class="pp">]</span><span class="cf">|</span><span class="pp">[^&quot;</span><span class="ch">\\\r\n</span><span class="pp">]</span>)<span class="op">*</span><span class="vs">&quot;&#39;</span>, <span class="st">&quot;string&quot;</span>)</span></code></pre></div>
+<p>An escaped character or an ordinary character</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>token[<span class="st">&quot;value&quot;</span>] <span class="op">=</span> decode_string(value, line, column)</span></code></pre></div>
+</section>
+<section><h2 id="decoding-the-string">Decoding the String</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>escapes <span class="op">=</span> {<span class="st">&quot;n&quot;</span>: <span class="st">&quot;</span><span class="ch">\n</span><span class="st">&quot;</span>, <span class="st">&quot;t&quot;</span>: <span class="st">&quot;</span><span class="ch">\t</span><span class="st">&quot;</span>, <span class="st">&quot;r&quot;</span>: <span class="st">&quot;</span><span class="ch">\r</span><span class="st">&quot;</span>, <span class="st">&#39;&quot;&#39;</span>: <span class="st">&#39;&quot;&#39;</span>, <span class="st">&quot;</span><span class="ch">\\</span><span class="st">&quot;</span>: <span class="st">&quot;</span><span class="ch">\\</span><span class="st">&quot;</span>}</span></code></pre></div>
+<p>Ordinary character: copy it. Backslash: consume two characters.</p>
+<table>
+<thead>
+<tr>
+<th>Source characters</th>
+<th>Value characters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>\n</code></td>
+<td>One newline</td>
+</tr>
+<tr>
+<td><code>\"</code></td>
+<td>One quotation mark</td>
+</tr>
+<tr>
+<td><code>\\n</code></td>
+<td>A backslash followed by <code>n</code></td>
+</tr>
+<tr>
+<td><code>\q</code></td>
+<td>Syntax error</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="a-string-in-an-expression-tree">A String in an Expression
+Tree</h2>
+<p><code>"ha" * 3 + "!"</code></p>
+<p><img src="slide-assets/diagram-06.svg"
+alt="A String in an Expression Tree" /></p>
+</section>
+<section><h2 id="operators-and-types">Operators and Types</h2>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"ha" * 3</code></td>
+<td><code>"hahaha"</code></td>
+</tr>
+<tr>
+<td><code>3 * "ha"</code></td>
+<td><code>"hahaha"</code></td>
+</tr>
+<tr>
+<td><code>"3" + "4"</code></td>
+<td><code>"34"</code></td>
+</tr>
+<tr>
+<td><code>3 + 4</code></td>
+<td><code>7</code></td>
+</tr>
+<tr>
+<td><code>"ha" * 3.0</code></td>
+<td>Type error</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="input-returns-text">Input Returns Text</h2>
+<pre class="vertex"><code>name = input();
+name = input(&quot;Your name? &quot;);</code></pre>
+<p>Typing <code>42</code> produces <code>"42"</code>.</p>
+</section>
+<section><h2 id="text-to-number">Text to Number</h2>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>number("42")</code></td>
+<td>Integer <code>42</code></td>
+</tr>
+<tr>
+<td><code>number("-3")</code></td>
+<td>Integer <code>-3</code></td>
+</tr>
+<tr>
+<td><code>number(" .5 ")</code></td>
+<td>Float <code>0.5</code></td>
+</tr>
+<tr>
+<td><code>number("5.")</code></td>
+<td>Float <code>5.0</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="number-to-text">Number to Text</h2>
+<pre class="vertex"><code>answer = 21 * 2;
+print(answer);
+print(&quot;Answer: &quot; + string(answer));</code></pre>
+<pre class="text"><code>42
+Answer: 42</code></pre>
+</section>
+<section><h2 id="expression-forms">Expression Forms</h2>
+<pre class="text"><code>input_expression = &quot;input&quot; &quot;(&quot; [ expression ] &quot;)&quot;
+number_expression = &quot;number&quot; &quot;(&quot; expression &quot;)&quot;
+string_expression = &quot;string&quot; &quot;(&quot; expression &quot;)&quot;</code></pre>
+<pre class="vertex"><code>answer = number(input()) * 2;</code></pre>
+</section>
+<section><h2 id="the-conversion-node">The Conversion Node</h2>
+<p><code>number("21")</code></p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;tag&quot;</span>: <span class="st">&quot;number_conversion&quot;</span>,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;expression&quot;</span>: {</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;tag&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;value&quot;</span>: <span class="st">&quot;21&quot;</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+</section>
+<section><h2 id="print-is-still-a-statement">Print Is Still a Statement</h2>
+<pre class="text"><code>print_statement = &quot;print&quot; &quot;(&quot; expression &quot;)&quot;</code></pre>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Accepted?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>print(42)</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>print 42</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>value = print(42)</code></td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="capturing-output">Capturing Output</h2>
+<pre class="vertex"><code>print(42);
+saved = __output;
+print(&quot;Captured: &quot; + saved);</code></pre>
+<table>
+<thead>
+<tr>
+<th>Variable after the program</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>saved</code></td>
+<td><code>"42"</code></td>
+</tr>
+<tr>
+<td><code>__output</code></td>
+<td><code>"Captured: 42"</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="supplied-input-is-used-once">Supplied Input Is Used Once</h2>
+<pre class="vertex"><code>__input = &quot;Ada&quot;;
+name = input();</code></pre>
+<table>
+<thead>
+<tr>
+<th>After input</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td><code>"Ada"</code></td>
+</tr>
+<tr>
+<td><code>__input</code></td>
+<td><code>""</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="the-input-decision">The Input Decision</h2>
+<p><img src="slide-assets/diagram-16.svg"
+alt="The Input Decision" /></p>
+</section>
+<section><h2 id="a-repeatable-test">A Repeatable Test</h2>
+<pre class="vertex"><code>__input = &quot;21&quot;;
+answer = number(input()) * 2;
+print(answer);</code></pre>
+<p>Expected: <code>__input</code> is <code>""</code>,
+<code>__output</code> is <code>"42"</code>.</p>
+</section>
+<section><h2 id="errors-at-different-stages">Errors at Different Stages</h2>
+<table>
+<thead>
+<tr>
+<th>Example</th>
+<th>Stage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unterminated string</td>
+<td>Tokenization</td>
+</tr>
+<tr>
+<td><code>number()</code></td>
+<td>Parsing</td>
+</tr>
+<tr>
+<td><code>number("hello")</code></td>
+<td>Evaluation</td>
+</tr>
+<tr>
+<td><code>"ha" * 2.0</code></td>
+<td>Evaluation</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="the-example-and-tests">The Example and Tests</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./vertex</span> example.v <span class="op">&lt;</span> /dev/null</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> run-tests.sh</span></code></pre></div>
+<p>Supplied input, clearing, captured output, conversions</p>
+</section>
+<section><h2 id="practice">Practice</h2>
+<p>Supply <code>"18.5"</code>, add <code>2</code>, and print
+<code>"Total: 20.5"</code>.</p>
+<p>Check the result and confirm that the input was consumed.</p>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>
