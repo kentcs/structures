@@ -38,14 +38,12 @@ Traffic lights and referee signals are familiar languages: shared forms,
 shared meanings, real consequences.
 </p>
 </section>
-<section><p class="eyebrow">
-02 / Two questions
-</p>
-<h2 id="every-language-needs-syntax-and-semantics.">Every language needs
+<section><h2 id="every-language-needs-syntax-and-semantics.">Every language needs
 syntax and semantics.</h2>
-<div class="compare">
+<div class="compare"
+style="display:grid;grid-template-columns:1fr 1fr;gap:40px">
 <div>
-<h3>
+<h3 style="font-size:32px;margin:0">
 Syntax
 </h3>
 <p>
@@ -55,7 +53,7 @@ Which programs are <strong>well-formed</strong>?
 print x;</code></pre>
 </div>
 <div>
-<h3>
+<h3 style="font-size:32px;margin:0">
 Semantics
 </h3>
 <p>
@@ -63,7 +61,10 @@ What do those programs <strong>do</strong>?
 </p>
 <pre class="text"><code>1 + 2  -&gt;  3
 x      -&gt;  3
-print  -&gt;  3</code></pre>
+print x -&gt; None</code></pre>
+<p>
+Side effect: <code>print x</code> writes <code>3</code>.
+</p>
 </div>
 </div>
 <div class="callout">

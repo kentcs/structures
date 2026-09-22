@@ -25,9 +25,9 @@ print x</code></pre>
 </section>
 <section><h2 id="a-program-contains-statements">A Program Contains
 Statements</h2>
-<pre class="text"><code>program = statement_list
+<pre class="text"><code>program ::= statement_list
 
-statement = assignment_statement
+statement ::= assignment_statement
           | print_statement</code></pre>
 <p>A statement list contains at least one statement.</p>
 </section>
@@ -63,37 +63,47 @@ statement = assignment_statement
 </tbody>
 </table>
 </section>
+<section><h2 id="comments-and-statement-separators">Comments and Statement
+Separators</h2>
+<pre class="text"><code>x = 2; // Keep the separator.
+print x</code></pre>
+<p><strong>The newline does not replace the semicolon.</strong></p>
+<pre class="text"><code>x = 2 // ; is part of the comment.
+print x</code></pre>
+<p>The second program has no separator between statements.</p>
+</section>
 <section><h2 id="statement-list-grammar">Statement List Grammar</h2>
-<pre class="text"><code>statement_list = { &quot;;&quot; } statement
+<pre class="text"><code>statement_list ::= { &quot;;&quot; } statement
                  { &quot;;&quot; { &quot;;&quot; } statement }
                  { &quot;;&quot; }</code></pre>
 <p>Braces mean zero or more repetitions.</p>
 </section>
 <section><h2 id="the-two-statement-forms">The Two Statement Forms</h2>
-<pre class="text"><code>assignment_statement = &lt;identifier&gt; &quot;=&quot; expression
+<pre class="text"><code>assignment_statement ::= &lt;identifier&gt; &quot;=&quot; expression
 
-print_statement = &quot;print&quot; expression</code></pre>
+print_statement ::= &quot;print&quot; expression</code></pre>
 <pre class="vertex"><code>x = 2
 print x</code></pre>
 </section>
 <section><h2 id="identifiers-in-expressions">Identifiers in Expressions</h2>
-<pre class="text"><code>factor = &lt;number&gt;
+<pre class="text"><code>factor ::= &lt;number&gt;
        | &lt;identifier&gt;
        | &quot;(&quot; expression &quot;)&quot;</code></pre>
 <pre class="vertex"><code>y = x + 3 * 4</code></pre>
 <p>What value does <code>x</code> have?</p>
 </section>
 <section><h2 id="expressions-carry-forward">Expressions Carry Forward</h2>
-<pre class="text"><code>term = unary { (&quot;*&quot; | &quot;/&quot;) unary }
-unary = &quot;-&quot; unary | factor</code></pre>
+<pre class="text"><code>term ::= unary { (&quot;*&quot; | &quot;/&quot;) unary }
+unary ::= &quot;-&quot; unary | factor</code></pre>
 <pre class="vertex"><code>x = -1.5
 y = 3 * -2</code></pre>
 </section>
 <section><h2 id="the-program-tree">The Program Tree</h2>
 <pre class="text"><code>program
   statement_list
-    assign x
-      number 2
+    assign
+      target: identifier x
+      expression: number 2
     print
       identifier x</code></pre>
 <p>The tree preserves statement order.</p>
@@ -176,11 +186,12 @@ print x;</code></pre>
 <pre class="vertex"><code>print (x = 2)</code></pre>
 </section>
 <section><h2 id="real-parser-code-go">Real Parser Code: Go</h2>
-<div class="sourceCode" id="cb1"><pre class="sourceCode go"><code class="sourceCode go"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">case</span> token<span class="op">.</span>ADD<span class="op">,</span> token<span class="op">.</span>SUB<span class="op">,</span> token<span class="op">.</span>NOT<span class="op">,</span> token<span class="op">.</span>XOR<span class="op">,</span> token<span class="op">.</span>AND<span class="op">,</span> token<span class="op">.</span>TILDE<span class="op">:</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    pos<span class="op">,</span> op <span class="op">:=</span> p<span class="op">.</span>pos<span class="op">,</span> p<span class="op">.</span>tok</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    p<span class="op">.</span>next<span class="op">()</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    x <span class="op">:=</span> p<span class="op">.</span>parseUnaryExpr<span class="op">()</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="op">&amp;</span>ast<span class="op">.</span>UnaryExpr<span class="op">{</span>OpPos<span class="op">:</span> pos<span class="op">,</span> Op<span class="op">:</span> op<span class="op">,</span> X<span class="op">:</span> x<span class="op">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode go"><code class="sourceCode go"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">case</span> token<span class="op">.</span>ADD<span class="op">,</span> token<span class="op">.</span>SUB<span class="op">,</span> token<span class="op">.</span>NOT<span class="op">,</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>     token<span class="op">.</span>XOR<span class="op">,</span> token<span class="op">.</span>AND<span class="op">,</span> token<span class="op">.</span>TILDE<span class="op">:</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    pos<span class="op">,</span> op <span class="op">:=</span> p<span class="op">.</span>pos<span class="op">,</span> p<span class="op">.</span>tok</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    p<span class="op">.</span>next<span class="op">()</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    x <span class="op">:=</span> p<span class="op">.</span>parseUnaryExpr<span class="op">()</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="op">&amp;</span>ast<span class="op">.</span>UnaryExpr<span class="op">{</span>OpPos<span class="op">:</span> pos<span class="op">,</span> Op<span class="op">:</span> op<span class="op">,</span> X<span class="op">:</span> x<span class="op">}</span></span></code></pre></div>
 <p>Same move: consume the operator, parse the operand, build a tree
 node.</p>
 </section>

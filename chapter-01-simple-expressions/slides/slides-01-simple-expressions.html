@@ -118,6 +118,16 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 </table>
 <p>The tokenizer tries patterns at the current position.</p>
 </section>
+<section><h2 id="recognize-and-discard-comments">Recognize and Discard
+Comments</h2>
+<pre class="text"><code>8 / 2 // Divide eight by two.</code></pre>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>(<span class="vs">r&quot;//</span><span class="pp">[^</span><span class="ch">\r\n</span><span class="pp">]</span><span class="op">*</span><span class="vs">&quot;</span>, <span class="st">&quot;comment&quot;</span>),</span></code></pre></div>
+<p><strong>Match comments before division.</strong></p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> current_tag <span class="kw">not</span> <span class="kw">in</span> (<span class="st">&quot;whitespace&quot;</span>, <span class="st">&quot;comment&quot;</span>):</span></code></pre></div>
+<p>The parser sees only <code>8 / 2</code>.</p>
+</section>
 <section><h2 id="tokens-carry-values">Tokens Carry Values</h2>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>{<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;number&quot;</span>, <span class="st">&quot;line&quot;</span>: <span class="dv">1</span>, <span class="st">&quot;column&quot;</span>: <span class="dv">1</span>, <span class="st">&quot;value&quot;</span>: <span class="dv">3</span>}</span></code></pre></div>
@@ -131,15 +141,15 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a hr
 becomes <code>12.5</code>.</p>
 </section>
 <section><h2 id="vertexs-expression-grammar">Vertex’s Expression Grammar</h2>
-<pre class="text"><code>expression = term { (&quot;+&quot; | &quot;-&quot;) term }
-term = unary { (&quot;*&quot; | &quot;/&quot;) unary }
-unary = &quot;-&quot; unary | factor
-factor = &lt;number&gt; | &quot;(&quot; expression &quot;)&quot;</code></pre>
+<pre class="text"><code>expression ::= term { (&quot;+&quot; | &quot;-&quot;) term }
+term ::= unary { (&quot;*&quot; | &quot;/&quot;) unary }
+unary ::= &quot;-&quot; unary | factor
+factor ::= &lt;number&gt; | &quot;(&quot; expression &quot;)&quot;</code></pre>
 <p>Extended Backus-Naur Form (EBNF)</p>
 <p>Braces repeat. A vertical bar separates alternatives.</p>
 </section>
 <section><h2 id="the-tree-for-345">The Tree for <code>3+4*5</code></h2>
-<p><img src="slide-assets/diagram-08.svg"
+<p><img src="slide-assets/diagram-09.svg"
 alt="The Tree for 3+4*5" /></p>
 <p>The right subtree supplies <code>20</code> to the addition.</p>
 </section>

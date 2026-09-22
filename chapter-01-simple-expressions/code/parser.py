@@ -5,14 +5,14 @@ from pprint import pprint
 
 # EBNF
 
-#   expression = term { ("+" | "-") term }
-#   term = unary { ("*" | "/") unary }
-#   unary = "-" unary | factor
-#   factor = <number> | "(" expression ")"
+#   expression ::= term { ("+" | "-") term }
+#   term ::= unary { ("*" | "/") unary }
+#   unary ::= "-" unary | factor
+#   factor ::= <number> | "(" expression ")"
 
 
 def parse_factor(tokens):
-    """factor = <number>"""
+    """factor ::= <number>"""
     token = tokens[0]
     if token["tag"] == "number":
         node = {"tag": "number", "value": token["value"]}
@@ -26,7 +26,7 @@ def parse_factor(tokens):
 
 
 def test_parse_factor():
-    """factor = <number>"""
+    """factor ::= <number>"""
     print("test parse_factor()")
     tokens = tokenize("3")
     ast, tokens = parse_factor(tokens)
@@ -40,7 +40,7 @@ def test_parse_factor():
 
 
 def parse_unary(tokens):
-    """unary = "-" unary | factor"""
+    """unary ::= "-" unary | factor"""
     if tokens[0]["tag"] == "-":
         operand, tokens = parse_unary(tokens[1:])
         return {"tag": "unary-", "operand": operand}, tokens
@@ -48,7 +48,7 @@ def parse_unary(tokens):
 
 
 def test_parse_unary():
-    """unary = "-" unary | factor"""
+    """unary ::= "-" unary | factor"""
     print("test parse_unary()")
     tokens = tokenize("-3")
     ast, tokens = parse_unary(tokens)
@@ -75,7 +75,7 @@ def test_parse_unary():
 
 
 def parse_term(tokens):
-    """term = unary { ("*" | "/") unary }"""
+    """term ::= unary { ("*" | "/") unary }"""
     left, tokens = parse_unary(tokens)
     while tokens[0]["tag"] in ["*", "/"]:
         op = tokens[0]["tag"]
@@ -85,7 +85,7 @@ def parse_term(tokens):
 
 
 def test_parse_term():
-    """term = unary { ("*" | "/") unary }"""
+    """term ::= unary { ("*" | "/") unary }"""
     print("test parse_term()")
     tokens = tokenize("3")
     ast, tokens = parse_term(tokens)
@@ -130,7 +130,7 @@ def test_parse_term():
 
 
 def parse_expression(tokens):
-    """expression = term { ("+" | "-") term }"""
+    """expression ::= term { ("+" | "-") term }"""
     left, tokens = parse_term(tokens)
     while tokens[0]["tag"] in ["+", "-"]:
         op = tokens[0]["tag"]
@@ -140,7 +140,7 @@ def parse_expression(tokens):
 
 
 def test_parse_expression():
-    """expression = term { ("+" | "-") term }"""
+    """expression ::= term { ("+" | "-") term }"""
     print("test parse_expression()")
     tokens = tokenize("3")
     ast, tokens = parse_expression(tokens)

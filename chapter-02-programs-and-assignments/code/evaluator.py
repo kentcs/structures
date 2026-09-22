@@ -16,7 +16,10 @@ def evaluate(ast, environment):
             raise ValueError(f"Unknown identifier: {identifier}")
     elif ast["tag"] == "assign":
         value = evaluate(ast["expression"], environment)
-        environment[ast["target"]] = value
+        target = ast["target"]
+        if target["tag"] != "identifier":
+            raise ValueError("Assignment requires an identifier destination")
+        environment[target["value"]] = value
         return None
     elif ast["tag"] == "unary-":
         return -evaluate(ast["operand"], environment)

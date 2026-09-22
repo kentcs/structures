@@ -10,6 +10,7 @@ from pprint import pprint
 
 patterns = [
     (r"\s+", "whitespace"),
+    (r"//[^\r\n]*", "comment"),
     (r"\d*\.\d+|\d+\.\d*|\d+", "number"),
     (r"\+", "+"),
     (r"\-", "-"),
@@ -47,7 +48,7 @@ def tokenize(characters):
         if current_tag == "error":
             raise Exception(f"Unexpected character: {value!r}")
 
-        if tag != "whitespace":
+        if current_tag not in ("whitespace", "comment"):
             token = {"tag": current_tag, "line": line, "column": column}
             if current_tag == "number":
                 if "." in value:
@@ -137,6 +138,26 @@ def test_whitespace():
     assert t[5]["tag"] is None
 
 
+def test_comments():
+    print("test tokenize comments")
+    for ending in ("\n", "\r\n", "\r"):
+        tokens = tokenize("8// ignored @ ; /" + ending + "/2")
+        assert [token["tag"] for token in tokens] == ["number", "/", "number", None]
+        assert tokens[0]["value"] == 8
+        assert tokens[2]["value"] == 2
+    for source in ("//", "// comment at end", "8 // trailing comment"):
+        tokens = tokenize(source)
+        assert [token["tag"] for token in tokens] == (
+            ["number", None] if source.startswith("8") else [None]
+        )
+        assert tokens[-1]["column"] == len(source) + 1
+    tokens = tokenize("// first\n  8// second\r\n /2")
+    assert (tokens[0]["line"], tokens[0]["column"]) == (2, 3)
+    assert (tokens[1]["line"], tokens[1]["column"]) == (3, 2)
+    assert [token["tag"] for token in tokenize("8/2")] == ["number", "/", "number", None]
+    assert [token["tag"] for token in tokenize("/ /")] == ["/", "/", None]
+
+
 def test_error():
     print("test tokenize error")
     try:
@@ -155,5 +176,6 @@ if __name__ == "__main__":
     test_expressions()
     test_identifiers()
     test_whitespace()
+    test_comments()
     test_error()
     print("done.")
