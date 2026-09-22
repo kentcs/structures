@@ -5,20 +5,20 @@ from pprint import pprint
 
 # EBNF
 
-#   program = statement_list
-#   statement_list = { ";" } statement { ";" { ";" } statement } { ";" }
-#   print_statement = "print" expression
-#   assignment_statement = <identifier> "=" expression
-#   statement = assignment_statement | print_statement
+#   program ::= statement_list
+#   statement_list ::= { ";" } statement { ";" { ";" } statement } { ";" }
+#   print_statement ::= "print" expression
+#   assignment_statement ::= <identifier> "=" expression
+#   statement ::= assignment_statement | print_statement
 
-#   expression = term { ("+" | "-") term }
-#   term = unary { ("*" | "/") unary }
-#   unary = "-" unary | factor
-#   factor = <number> | <identifier> | "(" expression ")"
+#   expression ::= term { ("+" | "-") term }
+#   term ::= unary { ("*" | "/") unary }
+#   unary ::= "-" unary | factor
+#   factor ::= <number> | <identifier> | "(" expression ")"
 
 
 def parse_factor(tokens):
-    # factor = <number> | <identifier> | "(" expression ")"
+    # factor ::= <number> | <identifier> | "(" expression ")"
     token = tokens[0]
     if token["tag"] == "number":
         node = {"tag": "number", "value": token["value"]}
@@ -35,7 +35,7 @@ def parse_factor(tokens):
 
 
 def test_parse_factor():
-    """factor = <number>"""
+    """factor ::= <number>"""
     print("test parse_factor()")
     tokens = tokenize("3")
     ast, tokens = parse_factor(tokens)
@@ -60,7 +60,7 @@ def test_parse_factor():
 
 
 def parse_unary(tokens):
-    """unary = "-" unary | factor"""
+    """unary ::= "-" unary | factor"""
     if tokens[0]["tag"] == "-":
         operand, tokens = parse_unary(tokens[1:])
         return {"tag": "unary-", "operand": operand}, tokens
@@ -68,7 +68,7 @@ def parse_unary(tokens):
 
 
 def test_parse_unary():
-    """unary = "-" unary | factor"""
+    """unary ::= "-" unary | factor"""
     print("test parse_unary()")
     tokens = tokenize("3")
     ast, tokens = parse_unary(tokens)
@@ -99,7 +99,7 @@ def test_parse_unary():
 
 
 def parse_term(tokens):
-    """term = unary { ("*" | "/") unary }"""
+    """term ::= unary { ("*" | "/") unary }"""
     left, tokens = parse_unary(tokens)
     while tokens[0]["tag"] in ["*", "/"]:
         op = tokens[0]["tag"]
@@ -109,7 +109,7 @@ def parse_term(tokens):
 
 
 def test_parse_term():
-    """term = unary { ("*" | "/") unary }"""
+    """term ::= unary { ("*" | "/") unary }"""
     print("test parse_term()")
     tokens = tokenize("3")
     ast, tokens = parse_term(tokens)
@@ -154,7 +154,7 @@ def test_parse_term():
 
 
 def parse_expression(tokens):
-    """expression = term { ("+" | "-") term }"""
+    """expression ::= term { ("+" | "-") term }"""
     left, tokens = parse_term(tokens)
     while tokens[0]["tag"] in ["+", "-"]:
         op = tokens[0]["tag"]
@@ -164,7 +164,7 @@ def parse_expression(tokens):
 
 
 def test_parse_expression():
-    """expression = term { ("+" | "-") term }"""
+    """expression ::= term { ("+" | "-") term }"""
     print("test parse_expression()")
     tokens = tokenize("3")
     ast, tokens = parse_expression(tokens)
@@ -197,7 +197,7 @@ def test_parse_expression():
 
 
 def parse_print_statement(tokens):
-    # print_statement = "print" expression
+    # print_statement ::= "print" expression
     assert tokens[0]["tag"] == "print", "Expected 'print'"
     tokens = tokens[1:]
     ast, tokens = parse_expression(tokens)
@@ -216,9 +216,9 @@ def test_parse_print_statement():
 
 
 def parse_assignment_statement(tokens):
-    # assignment_statement = <identifier> "=" expression
+    # assignment_statement ::= <identifier> "=" expression
     assert tokens[0]["tag"] == "identifier", "Expected <identifier>"
-    identifier = tokens[0]["value"]
+    identifier = {"tag": "identifier", "value": tokens[0]["value"]}
     tokens = tokens[1:]
     assert tokens[0]["tag"] == "=", "Expected '=' for assignment"
     tokens = tokens[1:]
@@ -232,7 +232,7 @@ def test_parse_assignment_statement():
     ast, tokens = parse_assignment_statement(tokens)
     assert ast == {
         "tag": "assign",
-        "target": "x",
+        "target": {"tag": "identifier", "value": "x"},
         "expression": {"tag": "number", "value": 1},
     }
     assert tokens[0]["tag"] == None
@@ -242,7 +242,7 @@ def test_parse_assignment_statement():
 
 
 def parse_statement(tokens):
-    # statement = assignment_statement | print_statement
+    # statement ::= assignment_statement | print_statement
     if tokens[0]["tag"] == "print":
         return parse_print_statement(tokens)
     if tokens[0]["tag"] == "identifier":
@@ -265,7 +265,7 @@ def test_parse_statement():
 
 
 def parse_statement_list(tokens):
-    # statement_list = { ";" } statement { ";" { ";" } statement } { ";" }
+    # statement_list ::= { ";" } statement { ";" { ";" } statement } { ";" }
     statements = []
 
     # leading semicolons
@@ -313,7 +313,7 @@ def test_parse_statement_list():
     assert ast["tag"] == "statement_list"
     assert len(ast["statements"]) == 1
     assert ast["statements"][0]["tag"] == "assign"
-    assert ast["statements"][0]["target"] == "x"
+    assert ast["statements"][0]["target"] == {"tag": "identifier", "value": "x"}
     assert rest[0]["tag"] is None
 
     # single statement, trailing semicolon(s)
@@ -349,7 +349,7 @@ def test_parse_statement_list():
     ast, rest = parse_statement_list(tokens)
     assert len(ast["statements"]) == 2
     assert ast["statements"][0]["tag"] == "assign"
-    assert ast["statements"][0]["target"] == "x"
+    assert ast["statements"][0]["target"] == {"tag": "identifier", "value": "x"}
     assert ast["statements"][1]["tag"] == "print"
     assert rest[0]["tag"] is None
 
