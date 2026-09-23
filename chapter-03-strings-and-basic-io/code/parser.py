@@ -5,24 +5,24 @@ from tokenizer import tokenize
 
 # EBNF
 #
-#   program = statement_list
-#   statement_list = { ";" } statement { ";" { ";" } statement } { ";" }
-#   statement = assignment_statement | print_statement
-#   assignment_statement = <identifier> "=" expression
+#   program ::= statement_list
+#   statement_list ::= { ";" } statement { ";" { ";" } statement } { ";" }
+#   statement ::= assignment_statement | print_statement
+#   assignment_statement ::= <identifier> "=" expression
 #
 #   ===== CHAPTER 3: print now requires parentheses =====
-#   print_statement = "print" "(" expression ")"
+#   print_statement ::= "print" "(" expression ")"
 #
-#   expression = term { ("+" | "-") term }
-#   term = unary { ("*" | "/") unary }
-#   unary = "-" unary | factor
+#   expression ::= term { ("+" | "-") term }
+#   term ::= unary { ("*" | "/") unary }
+#   unary ::= "-" unary | factor
 #
 #   ===== CHAPTER 3: strings and input are expression forms =====
-#   factor = <number> | <string> | <identifier> | input_expression
+#   factor ::= <number> | <string> | <identifier> | input_expression
 #          | number_expression | string_expression | "(" expression ")"
-#   input_expression = "input" "(" [ expression ] ")"
-#   number_expression = "number" "(" expression ")"
-#   string_expression = "string" "(" expression ")"
+#   input_expression ::= "input" "(" [ expression ] ")"
+#   number_expression ::= "number" "(" expression ")"
+#   string_expression ::= "string" "(" expression ")"
 #
 # input has function-shaped syntax, but this chapter does not implement
 # general function calls, parameters, or function values.
@@ -36,7 +36,7 @@ def require(tokens, tag, message):
 
 def parse_input_expression(tokens):
     # ===== CHAPTER 3 =====
-    # input_expression = "input" "(" [ expression ] ")"
+    # input_expression ::= "input" "(" [ expression ] ")"
     tokens = require(tokens, "input", "Expected 'input'")
     tokens = require(tokens, "(", "Expected '(' after 'input'")
 
@@ -80,7 +80,7 @@ def parse_factor(tokens):
 
 
 def parse_unary(tokens):
-    """unary = "-" unary | factor"""
+    """unary ::= "-" unary | factor"""
     if tokens[0]["tag"] == "-":
         operand, tokens = parse_unary(tokens[1:])
         return {"tag": "unary-", "operand": operand}, tokens
@@ -88,7 +88,7 @@ def parse_unary(tokens):
 
 
 def parse_term(tokens):
-    """term = unary { ("*" | "/") unary }"""
+    """term ::= unary { ("*" | "/") unary }"""
     left, tokens = parse_unary(tokens)
     while tokens[0]["tag"] in ["*", "/"]:
         operator = tokens[0]["tag"]
@@ -98,7 +98,7 @@ def parse_term(tokens):
 
 
 def parse_expression(tokens):
-    """expression = term { ("+" | "-") term }"""
+    """expression ::= term { ("+" | "-") term }"""
     left, tokens = parse_term(tokens)
     while tokens[0]["tag"] in ["+", "-"]:
         operator = tokens[0]["tag"]
@@ -109,7 +109,7 @@ def parse_expression(tokens):
 
 def parse_print_statement(tokens):
     # ===== CHAPTER 3: parentheses are required =====
-    # print_statement = "print" "(" expression ")"
+    # print_statement ::= "print" "(" expression ")"
     tokens = require(tokens, "print", "Expected 'print'")
     tokens = require(tokens, "(", "Expected '(' after 'print'")
     expression, tokens = parse_expression(tokens)
@@ -118,10 +118,10 @@ def parse_print_statement(tokens):
 
 
 def parse_assignment_statement(tokens):
-    # assignment_statement = <identifier> "=" expression
+    # assignment_statement ::= <identifier> "=" expression
     if tokens[0]["tag"] != "identifier":
         raise SyntaxError(f"Expected identifier, got {tokens[0]}")
-    identifier = tokens[0]["value"]
+    identifier = {"tag": "identifier", "value": tokens[0]["value"]}
     tokens = require(tokens[1:], "=", "Expected '=' for assignment")
     expression, tokens = parse_expression(tokens)
     return {
@@ -140,7 +140,7 @@ def parse_statement(tokens):
 
 
 def parse_statement_list(tokens):
-    # statement_list = { ";" } statement { ";" { ";" } statement } { ";" }
+    # statement_list ::= { ";" } statement { ";" { ";" } statement } { ";" }
     statements = []
 
     while tokens[0]["tag"] == ";":
@@ -287,7 +287,7 @@ def test_parse_assignment_statement():
     ast, rest = parse_assignment_statement(tokenize('greeting="Hello"'))
     assert ast == {
         "tag": "assign",
-        "target": "greeting",
+        "target": {"tag": "identifier", "value": "greeting"},
         "expression": {"tag": "string", "value": "Hello"},
     }
     assert rest[0]["tag"] is None
