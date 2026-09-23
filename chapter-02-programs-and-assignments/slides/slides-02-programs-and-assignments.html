@@ -144,6 +144,37 @@ Environment</h2>
 </ol>
 <p>An unknown name causes an evaluation error.</p>
 </section>
+<section><h2 id="parent-environments">Parent Environments</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>parent <span class="op">=</span> {<span class="st">&quot;x&quot;</span>: <span class="dv">10</span>, <span class="st">&quot;y&quot;</span>: <span class="dv">20</span>}</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>environment <span class="op">=</span> {<span class="st">&quot;$PARENT&quot;</span>: parent, <span class="st">&quot;x&quot;</span>: <span class="dv">3</span>}</span></code></pre></div>
+<p>Search here, then outward. <strong>The first binding
+wins.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Lookup</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td><code>3</code> from the current environment</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td><code>20</code> from the enclosing environment</td>
+</tr>
+<tr>
+<td><code>z</code></td>
+<td>Error: no binding in the chain</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Assignment stays local:</strong> <code>y = 7</code> leaves
+the parent’s <code>y</code> at <code>20</code>.</p>
+</section>
 <section><h2 id="one-environment-for-the-program">One Environment for the
 Program</h2>
 <table>
