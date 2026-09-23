@@ -67,8 +67,11 @@ def evaluate(ast, environment):
     if ast["tag"] == "assign":
         value = evaluate(ast["expression"], environment)
         target = ast["target"]
-        destination = global_environment(environment) if target in ("__input", "__output") else environment
-        destination[target] = value
+        if target["tag"] != "identifier":
+            raise ValueError("Assignment requires an identifier destination")
+        name = target["value"]
+        destination = global_environment(environment) if name in ("__input", "__output") else environment
+        destination[name] = value
         return None
 
     if ast["tag"] == "unary-":

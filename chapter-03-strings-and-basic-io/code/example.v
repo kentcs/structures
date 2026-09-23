@@ -1,5 +1,6 @@
+// Line comments carry forward from Programs and Assignments.
 print("Chapter 3: Strings and Basic I/O");
-__input = "Ada";
+__input = "Ada"; // Supply input so this example stays non-interactive.
 name = input("What is your name? ");
 greeting = "Hello, " + name + "!";
 print(greeting);

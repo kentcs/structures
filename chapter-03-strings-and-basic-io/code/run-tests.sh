@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 python3 tokenizer.py
 python3 parser.py
 python3 evaluator.py
-python3 -m unittest -v test_io_and_number.py
+python3 -m unittest discover -v
 
 actual_output="$(./vertex example.v < /dev/null)"
 expected_output='Chapter 3: Strings and Basic I/O

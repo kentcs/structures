@@ -38,6 +38,8 @@ code { font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 <li><a href="#file-7061727365722e7079">parser.py</a></li>
 <li><a href="#file-72756e2d74657374732e7368">run-tests.sh</a></li>
 <li><a href="#file-72756e6e65722e7079">runner.py</a></li>
+<li><a href="#file-746573745f61737369676e6d656e745f746172676574732e7079">test_assignment_targets.py</a></li>
+<li><a href="#file-746573745f636861707465725f325f636f6d7061746962696c6974792e7079">test_chapter_2_compatibility.py</a></li>
 <li><a href="#file-746573745f696f5f616e645f6e756d6265722e7079">test_io_and_number.py</a></li>
 <li><a href="#file-746f6b656e697a65722e7079">tokenizer.py</a></li>
 <li><a href="#file-766572746578">vertex</a></li></ul></nav>
@@ -110,8 +112,11 @@ def evaluate(ast, environment):
     if ast["tag"] == "assign":
         value = evaluate(ast["expression"], environment)
         target = ast["target"]
-        destination = global_environment(environment) if target in ("__input", "__output") else environment
-        destination[target] = value
+        if target["tag"] != "identifier":
+            raise ValueError("Assignment requires an identifier destination")
+        name = target["value"]
+        destination = global_environment(environment) if name in ("__input", "__output") else environment
+        destination[name] = value
         return None
 
     if ast["tag"] == "unary-":
@@ -273,8 +278,9 @@ if __name__ == "__main__":
     test_evaluate_chapter_3_program()
     print("done.")
 </code></pre></section>
-<section class="source-file" id="file-6578616d706c652e76" aria-labelledby="title-file-6578616d706c652e76" hidden><header class="file-header"><h2 id="title-file-6578616d706c652e76">example.v</h2></header><pre><code>print("Chapter 3: Strings and Basic I/O");
-__input = "Ada";
+<section class="source-file" id="file-6578616d706c652e76" aria-labelledby="title-file-6578616d706c652e76" hidden><header class="file-header"><h2 id="title-file-6578616d706c652e76">example.v</h2></header><pre><code>// Line comments carry forward from Programs and Assignments.
+print("Chapter 3: Strings and Basic I/O");
+__input = "Ada"; // Supply input so this example stays non-interactive.
 name = input("What is your name? ");
 greeting = "Hello, " + name + "!";
 print(greeting);
@@ -299,24 +305,24 @@ from tokenizer import tokenize
 
 # EBNF
 #
-#   program = statement_list
-#   statement_list = { ";" } statement { ";" { ";" } statement } { ";" }
-#   statement = assignment_statement | print_statement
-#   assignment_statement = &lt;identifier&gt; "=" expression
+#   program ::= statement_list
+#   statement_list ::= { ";" } statement { ";" { ";" } statement } { ";" }
+#   statement ::= assignment_statement | print_statement
+#   assignment_statement ::= &lt;identifier&gt; "=" expression
 #
 #   ===== CHAPTER 3: print now requires parentheses =====
-#   print_statement = "print" "(" expression ")"
+#   print_statement ::= "print" "(" expression ")"
 #
-#   expression = term { ("+" | "-") term }
-#   term = unary { ("*" | "/") unary }
-#   unary = "-" unary | factor
+#   expression ::= term { ("+" | "-") term }
+#   term ::= unary { ("*" | "/") unary }
+#   unary ::= "-" unary | factor
 #
 #   ===== CHAPTER 3: strings and input are expression forms =====
-#   factor = &lt;number&gt; | &lt;string&gt; | &lt;identifier&gt; | input_expression
+#   factor ::= &lt;number&gt; | &lt;string&gt; | &lt;identifier&gt; | input_expression
 #          | number_expression | string_expression | "(" expression ")"
-#   input_expression = "input" "(" [ expression ] ")"
-#   number_expression = "number" "(" expression ")"
-#   string_expression = "string" "(" expression ")"
+#   input_expression ::= "input" "(" [ expression ] ")"
+#   number_expression ::= "number" "(" expression ")"
+#   string_expression ::= "string" "(" expression ")"
 #
 # input has function-shaped syntax, but this chapter does not implement
 # general function calls, parameters, or function values.
@@ -330,7 +336,7 @@ def require(tokens, tag, message):
 
 def parse_input_expression(tokens):
     # ===== CHAPTER 3 =====
-    # input_expression = "input" "(" [ expression ] ")"
+    # input_expression ::= "input" "(" [ expression ] ")"
     tokens = require(tokens, "input", "Expected 'input'")
     tokens = require(tokens, "(", "Expected '(' after 'input'")
 
@@ -374,7 +380,7 @@ def parse_factor(tokens):
 
 
 def parse_unary(tokens):
-    """unary = "-" unary | factor"""
+    """unary ::= "-" unary | factor"""
     if tokens[0]["tag"] == "-":
         operand, tokens = parse_unary(tokens[1:])
         return {"tag": "unary-", "operand": operand}, tokens
@@ -382,7 +388,7 @@ def parse_unary(tokens):
 
 
 def parse_term(tokens):
-    """term = unary { ("*" | "/") unary }"""
+    """term ::= unary { ("*" | "/") unary }"""
     left, tokens = parse_unary(tokens)
     while tokens[0]["tag"] in ["*", "/"]:
         operator = tokens[0]["tag"]
@@ -392,7 +398,7 @@ def parse_term(tokens):
 
 
 def parse_expression(tokens):
-    """expression = term { ("+" | "-") term }"""
+    """expression ::= term { ("+" | "-") term }"""
     left, tokens = parse_term(tokens)
     while tokens[0]["tag"] in ["+", "-"]:
         operator = tokens[0]["tag"]
@@ -403,7 +409,7 @@ def parse_expression(tokens):
 
 def parse_print_statement(tokens):
     # ===== CHAPTER 3: parentheses are required =====
-    # print_statement = "print" "(" expression ")"
+    # print_statement ::= "print" "(" expression ")"
     tokens = require(tokens, "print", "Expected 'print'")
     tokens = require(tokens, "(", "Expected '(' after 'print'")
     expression, tokens = parse_expression(tokens)
@@ -412,10 +418,10 @@ def parse_print_statement(tokens):
 
 
 def parse_assignment_statement(tokens):
-    # assignment_statement = &lt;identifier&gt; "=" expression
+    # assignment_statement ::= &lt;identifier&gt; "=" expression
     if tokens[0]["tag"] != "identifier":
         raise SyntaxError(f"Expected identifier, got {tokens[0]}")
-    identifier = tokens[0]["value"]
+    identifier = {"tag": "identifier", "value": tokens[0]["value"]}
     tokens = require(tokens[1:], "=", "Expected '=' for assignment")
     expression, tokens = parse_expression(tokens)
     return {
@@ -434,7 +440,7 @@ def parse_statement(tokens):
 
 
 def parse_statement_list(tokens):
-    # statement_list = { ";" } statement { ";" { ";" } statement } { ";" }
+    # statement_list ::= { ";" } statement { ";" { ";" } statement } { ";" }
     statements = []
 
     while tokens[0]["tag"] == ";":
@@ -581,7 +587,7 @@ def test_parse_assignment_statement():
     ast, rest = parse_assignment_statement(tokenize('greeting="Hello"'))
     assert ast == {
         "tag": "assign",
-        "target": "greeting",
+        "target": {"tag": "identifier", "value": "greeting"},
         "expression": {"tag": "string", "value": "Hello"},
     }
     assert rest[0]["tag"] is None
@@ -632,7 +638,7 @@ cd "$(dirname "$0")"
 python3 tokenizer.py
 python3 parser.py
 python3 evaluator.py
-python3 -m unittest -v test_io_and_number.py
+python3 -m unittest discover -v
 
 actual_output="$(./vertex example.v &lt; /dev/null)"
 expected_output='Chapter 3: Strings and Basic I/O
@@ -674,6 +680,118 @@ if __name__ == "__main__":
     tokens = tokenize(program)
     ast = parse(tokens)
     evaluate(ast, {})
+</code></pre></section>
+<section class="source-file" id="file-746573745f61737369676e6d656e745f746172676574732e7079" aria-labelledby="title-file-746573745f61737369676e6d656e745f746172676574732e7079" hidden><header class="file-header"><h2 id="title-file-746573745f61737369676e6d656e745f746172676574732e7079">test_assignment_targets.py</h2></header><pre><code>"""Assignment destinations and print effects in the released interpreter."""
+
+import contextlib
+import io
+import unittest
+
+from evaluator import evaluate
+from parser import parse_assignment_statement, parse_print_statement
+from tokenizer import tokenize
+
+
+class AssignmentTests(unittest.TestCase):
+    def test_target_is_identifier_and_creates_binding(self):
+        tree, _ = parse_assignment_statement(tokenize("x = 2"))
+        self.assertEqual(tree["target"], {"tag": "identifier", "value": "x"})
+        environment = {}
+        self.assertIsNone(evaluate(tree, environment))
+        self.assertEqual(environment["x"], 2)
+
+    def test_reassignment_reads_old_value_only_on_right(self):
+        tree, _ = parse_assignment_statement(tokenize("x = x + 3"))
+        environment = {"x": 2}
+        self.assertIsNone(evaluate(tree, environment))
+        self.assertEqual(environment["x"], 5)
+
+    def test_non_identifier_targets_are_rejected(self):
+        for source in ['"x" = 2', "2 = 3", "(x) = 2"]:
+            with self.subTest(source=source):
+                with self.assertRaises((SyntaxError, AssertionError)):
+                    parse_assignment_statement(tokenize(source))
+
+    def test_string_node_is_not_an_assignment_destination(self):
+        tree = {"tag": "assign", "target": {"tag": "string", "value": "x"},
+                "expression": {"tag": "number", "value": 2}}
+        environment = {}
+        with self.assertRaises(ValueError):
+            evaluate(tree, environment)
+        self.assertEqual(environment, {})
+
+    def test_print_returns_none_and_writes_output(self):
+        tree, _ = parse_print_statement(tokenize("print(3)"))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            result = evaluate(tree, {})
+        self.assertIsNone(result)
+        self.assertEqual(output.getvalue(), "3\n")
+
+
+if __name__ == "__main__":
+    unittest.main()
+</code></pre></section>
+<section class="source-file" id="file-746573745f636861707465725f325f636f6d7061746962696c6974792e7079" aria-labelledby="title-file-746573745f636861707465725f325f636f6d7061746962696c6974792e7079" hidden><header class="file-header"><h2 id="title-file-746573745f636861707465725f325f636f6d7061746962696c6974792e7079">test_chapter_2_compatibility.py</h2></header><pre><code>import io
+import unittest
+from contextlib import redirect_stdout
+
+from evaluator import evaluate
+from parser import parse
+from tokenizer import tokenize
+
+
+class Chapter2CompatibilityTests(unittest.TestCase):
+    def test_numeric_programs(self):
+        cases = [
+            ("x=2; print(x); y=x+3*4; print(y)", "2\n14\n"),
+            (";;;x=-1.5+.5*5.;;;print(x);;;", "1.0\n"),
+            ("x=--3; x=x+1; print(-(x+2))", "-6\n"),
+            ("x=20/2/2; print(x); print(10-3-2)", "5.0\n5\n"),
+            ("// start\nx=8; // assignment\nprint(x/2)// end", "4.0\n"),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertIsNone(evaluate(parse(tokenize(source)), {}))
+                self.assertEqual(output.getvalue(), expected)
+
+    def test_comment_tokens_and_positions(self):
+        for ending in ("\n", "\r\n", "\r"):
+            tokens = tokenize("8// ignored @ ; /" + ending + "/2")
+            self.assertEqual([t["tag"] for t in tokens], ["number", "/", "number", None])
+        for source in ("//", "// at end", "8 // trailing"):
+            tokens = tokenize(source)
+            self.assertEqual([t["tag"] for t in tokens],
+                             ["number", None] if source.startswith("8") else [None])
+            self.assertEqual(tokens[-1]["column"], len(source) + 1)
+        tokens = tokenize("// first\n  8// second\r\n /2")
+        self.assertEqual((tokens[0]["line"], tokens[0]["column"]), (2, 3))
+        self.assertEqual((tokens[1]["line"], tokens[1]["column"]), (3, 2))
+        self.assertEqual([t["tag"] for t in tokenize("/ /")], ["/", "/", None])
+
+    def test_comments_and_strings(self):
+        tokens = tokenize('"https://example.org" // "unterminated \\q\n"//"')
+        self.assertEqual([t["tag"] for t in tokens], ["string", "string", None])
+        self.assertEqual(tokens[0]["value"], "https://example.org")
+        self.assertEqual(tokens[1]["value"], "//")
+
+    def test_rejected_programs(self):
+        for source in ("", ";;;", "// only a comment", "x=2 print(x)",
+                       "x=2 // ;\nprint(x)", "3=2", "print 2"):
+            with self.subTest(source=source), self.assertRaises(SyntaxError):
+                parse(tokenize(source))
+
+    def test_evaluation_errors(self):
+        for source, error in (("print(missing)", ValueError),
+                              ("x=3/0", ZeroDivisionError)):
+            with self.subTest(source=source), self.assertRaises(error):
+                evaluate(parse(tokenize(source)), {})
+
+
+if __name__ == "__main__":
+    unittest.main()
 </code></pre></section>
 <section class="source-file" id="file-746573745f696f5f616e645f6e756d6265722e7079" aria-labelledby="title-file-746573745f696f5f616e645f6e756d6265722e7079" hidden><header class="file-header"><h2 id="title-file-746573745f696f5f616e645f6e756d6265722e7079">test_io_and_number.py</h2></header><pre><code>import io
 import unittest
@@ -790,6 +908,7 @@ if __name__ == '__main__':
 
 patterns = [
     (r"\s+", "whitespace"),
+    (r"//[^\r\n]*", "comment"),
 
     # ===== CHAPTER 3: string literals =====
     # Strings use double quotes and stay on one source line.
@@ -860,7 +979,7 @@ def tokenize(characters):
         if current_tag == "error":
             raise SyntaxError(f"Unexpected character: {value!r}")
 
-        if current_tag != "whitespace":
+        if current_tag not in ("whitespace", "comment"):
             token = {"tag": current_tag, "line": line, "column": column}
             if current_tag == "number":
                 token["value"] = float(value) if "." in value else int(value)

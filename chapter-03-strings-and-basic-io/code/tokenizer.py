@@ -3,6 +3,7 @@ import re
 
 patterns = [
     (r"\s+", "whitespace"),
+    (r"//[^\r\n]*", "comment"),
 
     # ===== CHAPTER 3: string literals =====
     # Strings use double quotes and stay on one source line.
@@ -73,7 +74,7 @@ def tokenize(characters):
         if current_tag == "error":
             raise SyntaxError(f"Unexpected character: {value!r}")
 
-        if current_tag != "whitespace":
+        if current_tag not in ("whitespace", "comment"):
             token = {"tag": current_tag, "line": line, "column": column}
             if current_tag == "number":
                 token["value"] = float(value) if "." in value else int(value)

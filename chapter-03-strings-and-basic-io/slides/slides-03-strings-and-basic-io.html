@@ -10,6 +10,36 @@
 Gregory S. DeLozier, PhD
 </p>
 </section>
+<section><h2 id="breaking-changes">Breaking Changes</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Earlier code</th>
+<th>Change needed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>print x</code></td>
+<td><code>print(x)</code></td>
+</tr>
+<tr>
+<td>Variables <code>input</code>, <code>number</code>,
+<code>string</code></td>
+<td>Rename: now keywords</td>
+</tr>
+<tr>
+<td>Ordinary <code>__input</code>, <code>__output</code> variables</td>
+<td>Rename: now special globals</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Earlier programs may need edits.</strong></p>
+</section>
 <section><h2 id="a-program-with-text">A Program with Text</h2>
 <pre class="vertex"><code>__input = &quot;Ada&quot;;
 name = input(&quot;Name? &quot;);
@@ -85,7 +115,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 <section><h2 id="a-string-in-an-expression-tree">A String in an Expression
 Tree</h2>
 <p><code>"ha" * 3 + "!"</code></p>
-<p><img src="slide-assets/diagram-06.svg"
+<p><img src="slide-assets/diagram-07.svg"
 alt="A String in an Expression Tree" /></p>
 </section>
 <section><h2 id="operators-and-types">Operators and Types</h2>
@@ -161,9 +191,9 @@ print(&quot;Answer: &quot; + string(answer));</code></pre>
 Answer: 42</code></pre>
 </section>
 <section><h2 id="expression-forms">Expression Forms</h2>
-<pre class="text"><code>input_expression = &quot;input&quot; &quot;(&quot; [ expression ] &quot;)&quot;
-number_expression = &quot;number&quot; &quot;(&quot; expression &quot;)&quot;
-string_expression = &quot;string&quot; &quot;(&quot; expression &quot;)&quot;</code></pre>
+<pre class="text"><code>input_expression ::= &quot;input&quot; &quot;(&quot; [ expression ] &quot;)&quot;
+number_expression ::= &quot;number&quot; &quot;(&quot; expression &quot;)&quot;
+string_expression ::= &quot;string&quot; &quot;(&quot; expression &quot;)&quot;</code></pre>
 <pre class="vertex"><code>answer = number(input()) * 2;</code></pre>
 </section>
 <section><h2 id="the-conversion-node">The Conversion Node</h2>
@@ -177,7 +207,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
 </section>
 <section><h2 id="print-is-still-a-statement">Print Is Still a Statement</h2>
-<pre class="text"><code>print_statement = &quot;print&quot; &quot;(&quot; expression &quot;)&quot;</code></pre>
+<pre class="text"><code>print_statement ::= &quot;print&quot; &quot;(&quot; expression &quot;)&quot;</code></pre>
 <table>
 <thead>
 <tr>
@@ -247,7 +277,7 @@ name = input();</code></pre>
 </table>
 </section>
 <section><h2 id="the-input-decision">The Input Decision</h2>
-<p><img src="slide-assets/diagram-16.svg"
+<p><img src="slide-assets/diagram-17.svg"
 alt="The Input Decision" /></p>
 </section>
 <section><h2 id="a-repeatable-test">A Repeatable Test</h2>
