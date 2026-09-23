@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 5: Logical Operators</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="logical-operators">Logical Operators</h1>
+<p>Truth values, precedence, and short-circuit evaluation</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="breaking-changes">Breaking Changes</h2>
+<p><strong>New keywords:</strong> <code>and</code>, <code>or</code>,
+<code>not</code></p>
+<p>Rename earlier variables that use those exact names.</p>
+<p><code>android</code>, <code>origin</code>, and <code>notable</code>
+remain identifiers.</p>
+</section>
+<section><h2 id="combining-comparisons">Combining Comparisons</h2>
+<pre class="vertex"><code>__input = &quot;21&quot;;
+answer = number(input()) * 2;
+in_range = answer &gt;= 40 and answer &lt;= 50;
+print(in_range);</code></pre>
+<p>Two comparisons; one boolean result: <strong>true</strong>.</p>
+</section>
+<section><h2 id="two-spellings-one-tag">Two Spellings, One Tag</h2>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Token tag</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>and</code>, <code>&amp;&amp;</code></td>
+<td><code>and</code></td>
+</tr>
+<tr>
+<td><code>or</code>, <code>||</code></td>
+<td><code>or</code></td>
+</tr>
+<tr>
+<td><code>not</code>, <code>!</code></td>
+<td><code>not</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Normalize in the tokenizer.</strong></p>
+</section>
+<section><h2 id="boolean-operations">Boolean Operations</h2>
+<table>
+<thead>
+<tr>
+<th>Left</th>
+<th>Right</th>
+<th><code>and</code></th>
+<th><code>or</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>false</code></td>
+<td><code>false</code></td>
+<td><code>false</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>false</code></td>
+<td><code>true</code></td>
+<td><code>false</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>true</code></td>
+<td><code>false</code></td>
+<td><code>false</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>true</code></td>
+<td><code>true</code></td>
+<td><code>true</code></td>
+<td><code>true</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>not true</code> is <code>false</code>; <code>not false</code>
+is <code>true</code>.</p>
+</section>
+<section><h2 id="precedence-changes-the-tree">Precedence Changes the Tree</h2>
+<pre class="text"><code>not x == y      means   not (x == y)
+a or b and c    means   a or (b and c)</code></pre>
+<p>Weakest to strongest:</p>
+<p><code>or</code>, <code>and</code>, <code>not</code>, comparisons,
+arithmetic</p>
+</section>
+<section><h2 id="the-expression-tree">The Expression Tree</h2>
+<p><code>not false and 2 &lt; 3</code></p>
+<p><img src="slide-assets/diagram-07.svg"
+alt="The Expression Tree" /></p>
+</section>
+<section><h2 id="parser-levels">Parser Levels</h2>
+<pre class="text"><code>expression ::= logic_or
+logic_or ::= logic_and { &quot;or&quot; logic_and }
+logic_and ::= logic_not { &quot;and&quot; logic_not }
+logic_not ::= &quot;not&quot; logic_not | comparison</code></pre>
+<p><strong>Each level calls the next tighter level.</strong></p>
+</section>
+<section><h2 id="one-comparison-at-a-time">One Comparison at a Time</h2>
+<pre class="text"><code>1 &lt; 2 &lt; 3             rejected
+1 &lt; 2 and 2 &lt; 3       true
+(1 &lt; 2) == true       true</code></pre>
+<p>Parentheses settle grouping, not operand types.</p>
+</section>
+<section><h2 id="a-guard-before-division">A Guard Before Division</h2>
+<pre class="vertex"><code>divisor = 0;
+safe = divisor != 0 and 10 / divisor &gt; 2;
+print(safe);</code></pre>
+<p><strong>The division never runs.</strong></p>
+</section>
+<section><h2 id="short-circuit-and">Short-Circuit <code>and</code></h2>
+<p><img src="slide-assets/diagram-11.svg" alt="Short-Circuit and" /></p>
+</section>
+<section><h2 id="short-circuit-or">Short-Circuit <code>or</code></h2>
+<p><img src="slide-assets/diagram-12.svg" alt="Short-Circuit or" /></p>
+</section>
+<section><h2 id="input-that-does-not-run">Input That Does Not Run</h2>
+<pre class="vertex"><code>__input = &quot;ready&quot;;
+result = false &amp;&amp; input() == &quot;ready&quot;;
+print(result);
+print(__input);</code></pre>
+<pre class="text"><code>false
+ready</code></pre>
+</section>
+<section><h2 id="skipped-does-not-mean-unparsed">Skipped Does Not Mean
+Unparsed</h2>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>false and missing</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>false and 42</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>true and 42</code></td>
+<td>Type error</td>
+</tr>
+<tr>
+<td><code>false and (1 +)</code></td>
+<td>Syntax error</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="checking-the-implementation">Checking the Implementation</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> run-tests.sh</span></code></pre></div>
+<p>Same tokens and trees for both spellings.</p>
+<p>Truth tables, precedence, skipped input, required input.</p>
+</section>
+<section><h2 id="practice">Practice</h2>
+<p>Accept a supplied number from 10 through 20, inclusive.</p>
+<p>Then compare these two expressions:</p>
+<pre class="text"><code>divisor != 0 and 10 / divisor &gt; 2
+10 / divisor &gt; 2 and divisor != 0</code></pre>
+<p><strong>When does changing the order change the
+behavior?</strong></p>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>
