@@ -1,0 +1,1649 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code: Logical Operators</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; color: #172b36; background: #f5f7f9; font: 16px/1.5 system-ui, sans-serif; }
+main { max-width: 1600px; margin: auto; padding: 24px; }
+a { color: #12647a; }
+h1 { font-size: 26px; margin: 8px 0 20px; }
+.browser { display: grid; grid-template-columns: 270px minmax(0, 1fr); height: calc(100vh - 140px); min-height: 400px; border: 1px solid #ccd6dc; border-radius: 8px; overflow: hidden; background: white; }
+nav { overflow: auto; background: #edf2f5; border-right: 1px solid #ccd6dc; padding: 12px; }
+nav ul { list-style: none; padding: 0; margin: 0; }
+nav a { display: block; padding: 9px 10px; text-decoration: none; border-radius: 4px; overflow-wrap: anywhere; font: 14px/1.5 ui-monospace, monospace; }
+nav a:hover { background: #dfe9ed; }
+nav a[aria-current="true"] { background: #155e75; color: white; }
+a:focus-visible { outline: 3px solid #d18a00; outline-offset: -3px; }
+.viewer { min-width: 0; min-height: 0; }
+.source-file { height: 100%; display: flex; flex-direction: column; }
+.source-file[hidden] { display: none; }
+.file-header { padding: 12px 18px; border-bottom: 1px solid #ccd6dc; }
+h2 { font: 600 16px/1.5 ui-monospace, monospace; margin: 0; overflow-wrap: anywhere; }
+pre { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 20px; background: #fafbfc; tab-size: 4; }
+code { font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.binary { padding: 20px; }
+@media(max-width: 700px) { main { padding: 12px; } h1 { font-size: 21px; } .browser { grid-template-columns: 1fr; grid-template-rows: 160px minmax(0, 1fr); height: calc(100dvh - 130px); min-height: 480px; } nav { border-right: 0; border-bottom: 1px solid #ccd6dc; } }
+</style>
+</head>
+<body>
+<main>
+<a href="../index.html">Back to chapter</a>
+<h1>Logical Operators: Code</h1>
+<div class="browser">
+<nav aria-label="Files"><ul><li><a href="#file-6576616c7561746f722e7079">evaluator.py</a></li>
+<li><a href="#file-6578616d706c652e76">example.v</a></li>
+<li><a href="#file-7061727365722e7079">parser.py</a></li>
+<li><a href="#file-72756e2d74657374732e7368">run-tests.sh</a></li>
+<li><a href="#file-72756e6e65722e7079">runner.py</a></li>
+<li><a href="#file-746573745f61737369676e6d656e745f746172676574732e7079">test_assignment_targets.py</a></li>
+<li><a href="#file-746573745f626f6f6c65616e735f616e645f636f6d70617269736f6e732e7079">test_booleans_and_comparisons.py</a></li>
+<li><a href="#file-746573745f636861707465725f325f636f6d7061746962696c6974792e7079">test_chapter_2_compatibility.py</a></li>
+<li><a href="#file-746573745f636f6e76657273696f6e735f616e645f747970652e7079">test_conversions_and_type.py</a></li>
+<li><a href="#file-746573745f696f5f616e645f6e756d6265722e7079">test_io_and_number.py</a></li>
+<li><a href="#file-746573745f6c6f676963616c5f6f70657261746f72732e7079">test_logical_operators.py</a></li>
+<li><a href="#file-746f6b656e697a65722e7079">tokenizer.py</a></li>
+<li><a href="#file-766572746578">vertex</a></li></ul></nav>
+<div class="viewer"><section class="source-file" id="file-6576616c7561746f722e7079" aria-labelledby="title-file-6576616c7561746f722e7079"><header class="file-header"><h2 id="title-file-6576616c7561746f722e7079">evaluator.py</h2></header><pre><code>import builtins
+import io
+import re
+from contextlib import redirect_stdout
+from unittest.mock import patch
+
+import parser
+import tokenizer
+
+
+def global_environment(environment):
+    # The runner uses one dictionary. Tests can supply nested environments;
+    # the two input/output variables still belong to the root dictionary.
+    while "$PARENT" in environment:
+        environment = environment["$PARENT"]
+    return environment
+
+
+def evaluate(ast, environment):
+    if ast["tag"] == "boolean":
+        return ast["value"]
+
+    if ast["tag"] == "not":
+        # Do not let Python coerce numbers or strings to truth values for Vertex.
+        value = evaluate(ast["operand"], environment)
+        if type(value) is not bool:
+            raise TypeError("not requires a boolean operand")
+        return not value
+
+    if ast["tag"] in ("and", "or"):
+        # Evaluate and validate the left operand before considering the right.
+        # An eager evaluation of both children would consume input even when
+        # that input cannot affect the result.
+        left = evaluate(ast["left"], environment)
+        if type(left) is not bool:
+            raise TypeError(f"{ast['tag']} requires boolean operands")
+        # Do not evaluate the right side when the left already decides the result.
+        if ast["tag"] == "and" and not left:
+            return False
+        if ast["tag"] == "or" and left:
+            return True
+        right = evaluate(ast["right"], environment)
+        if type(right) is not bool:
+            raise TypeError(f"{ast['tag']} requires boolean operands")
+        # Only true-and-right and false-or-right reach here. In both cases the
+        # validated right boolean is also the result of the whole expression.
+        return right
+
+    if ast["tag"] == "number":
+        return ast["value"]
+
+    # ===== CHAPTER 3: strings are values =====
+    if ast["tag"] == "string":
+        return ast["value"]
+
+    if ast["tag"] == "identifier":
+        identifier = ast["value"]
+        env = environment
+        while True:
+            if identifier in env:
+                return env[identifier]
+            if "$PARENT" in env:
+                env = env["$PARENT"]
+                continue
+            raise ValueError(f"Unknown identifier: {identifier}")
+
+    # ===== CHAPTER 3: dedicated input expression =====
+    if ast["tag"] == "input":
+        prompt_ast = ast["prompt"]
+        prompt = evaluate(prompt_ast, environment) if prompt_ast is not None else None
+        if prompt_ast is not None and not isinstance(prompt, str):
+            raise TypeError("input prompt must be a string")
+        supplied = global_environment(environment).get("__input", "")
+        if not isinstance(supplied, str):
+            raise TypeError("__input must be a string")
+        if supplied != "":
+            # Clear before returning so a later input expression cannot reuse it.
+            global_environment(environment)["__input"] = ""
+            return supplied
+        if prompt_ast is None:
+            return builtins.input()
+        return builtins.input(prompt)
+
+    if ast["tag"] == "type_query":
+        # Evaluate exactly once: type(input()) still consumes input. Report
+        # Vertex types, not Python's distinction between int and float.
+        value = evaluate(ast["expression"], environment)
+        if type(value) is bool:
+            return "boolean"
+        if type(value) in (int, float):
+            return "number"
+        if type(value) is str:
+            return "string"
+        raise TypeError("type argument must be a Vertex value")
+
+    if ast["tag"] == "string_conversion":
+        value = evaluate(ast["expression"], environment)
+        if type(value) is bool:
+            return "true" if value else "false"
+        if type(value) in (int, float, str):
+            return str(value)
+        raise TypeError("string argument must be a number, string, or boolean")
+
+    if ast["tag"] == "number_conversion":
+        value = evaluate(ast["expression"], environment)
+        # Explicit conversion permits booleans as 1/0 without making them
+        # implicit arithmetic operands. Existing numbers retain their type.
+        if type(value) is bool:
+            return 1 if value else 0
+        if type(value) in (int, float):
+            return value
+        if type(value) is not str:
+            raise TypeError("number argument must be a number, string, or boolean")
+        text = value.strip()
+        if not re.fullmatch(r"[+-]?(?:\d*\.\d+|\d+\.\d*|\d+)", text):
+            raise ValueError(f"Invalid number: {value!r}")
+        return float(text) if "." in text else int(text)
+
+    if ast["tag"] == "boolean_conversion":
+        value = evaluate(ast["expression"], environment)
+        if type(value) is bool:
+            return value
+        if type(value) in (int, float):
+            return value != 0
+        if type(value) is str:
+            # Do not use Python's bool(text): even "false" would become true.
+            text = value.strip().lower()
+            if text in ("true", "false"):
+                return text == "true"
+            raise ValueError(f"Invalid boolean: {value!r}")
+        raise TypeError("boolean argument must be a number, string, or boolean")
+
+    if ast["tag"] == "assign":
+        value = evaluate(ast["expression"], environment)
+        target = ast["target"]
+        if target["tag"] != "identifier":
+            raise ValueError("Assignment requires an identifier destination")
+        name = target["value"]
+        destination = global_environment(environment) if name in ("__input", "__output") else environment
+        destination[name] = value
+        return None
+
+    if ast["tag"] == "unary-":
+        value = evaluate(ast["operand"], environment)
+        if type(value) is bool:
+            raise TypeError("Unary minus requires a number")
+        return -value
+
+    if ast["tag"] in ("==", "!=", "&lt;", "&lt;=", "&gt;", "&gt;="):
+        # Comparisons evaluate both operands, left to right. Unlike logical
+        # operators they have no short-circuit case.
+        left = evaluate(ast["left"], environment)
+        right = evaluate(ast["right"], environment)
+        numeric = type(left) in (int, float) and type(right) in (int, float)
+        if ast["tag"] in ("==", "!="):
+            # Integers and floats share numeric equality. Other types must match:
+            # true is not 1, and the string "1" is not the number 1.
+            equal = (numeric or type(left) is type(right)) and left == right
+            return equal if ast["tag"] == "==" else not equal
+        if not numeric:
+            # This chapter defines ordering for numbers only, not for strings
+            # or booleans. Equality is available for all three value families.
+            raise TypeError("Ordering comparisons require numbers")
+        if ast["tag"] == "&lt;":
+            return left &lt; right
+        if ast["tag"] == "&lt;=":
+            return left &lt;= right
+        if ast["tag"] == "&gt;":
+            return left &gt; right
+        return left &gt;= right
+
+    # Python's operators deliberately provide the Chapter 3 behavior:
+    # string + string concatenates, string * integer repeats, and integer *
+    # string repeats in the opposite order. Numeric behavior is unchanged.
+    if ast["tag"] in ("+", "-", "*", "/"):
+        left = evaluate(ast["left"], environment)
+        right = evaluate(ast["right"], environment)
+        # Python treats bool as an integer; Vertex keeps truth values distinct.
+        if type(left) is bool or type(right) is bool:
+            raise TypeError("Arithmetic does not accept boolean operands")
+        if ast["tag"] == "+":
+            return left + right
+        if ast["tag"] == "-":
+            return left - right
+        if ast["tag"] == "*":
+            return left * right
+        return left / right
+
+    if ast["tag"] == "print":
+        result = evaluate(ast["expression"], environment)
+        # Use Vertex's lowercase boolean spellings instead of Python's True/False.
+        # The terminal and __output must receive the same text.
+        text = ("true" if result else "false") if type(result) is bool else str(result)
+        print(text)
+        global_environment(environment)["__output"] = text
+        return None
+
+    if ast["tag"] == "statement_list":
+        for statement in ast["statements"]:
+            evaluate(statement, environment)
+        return None
+
+    if ast["tag"] == "program":
+        globals_ = global_environment(environment)
+        globals_.setdefault("__input", "")
+        globals_.setdefault("__output", "")
+        evaluate(ast["statements"], environment)
+        return None
+
+    raise ValueError(f"Unknown AST node: {ast}")
+
+
+def evaluate_source(source, environment=None):
+    """Small test helper; the runner performs these same three stages."""
+    if environment is None:
+        environment = {}
+    ast = parser.parse(tokenizer.tokenize(source))
+    result = evaluate(ast, environment)
+    return result, environment
+
+
+def test_evaluate_numbers():
+    print("test evaluate numbers")
+    ast, rest = parser.parse_expression(tokenizer.tokenize("3*(4+5)"))
+    assert rest[0]["tag"] is None
+    assert evaluate(ast, {}) == 27
+
+    ast, rest = parser.parse_expression(tokenizer.tokenize("-1.5+2"))
+    assert rest[0]["tag"] is None
+    assert evaluate(ast, {}) == 0.5
+
+
+def test_evaluate_strings():
+    # ===== CHAPTER 3 TESTS =====
+    print("test evaluate strings")
+    cases = [
+        ('"dog" + "cat"', "dogcat"),
+        ('"dog" * 2', "dogdog"),
+        ('2 * "dog"', "dogdog"),
+        ('("ha" * 3) + "!"', "hahaha!"),
+    ]
+    for source, expected in cases:
+        ast, rest = parser.parse_expression(tokenizer.tokenize(source))
+        assert rest[0]["tag"] is None
+        assert evaluate(ast, {}) == expected
+
+
+def test_evaluate_environments():
+    print("test evaluate environments")
+    result, environment = evaluate_source('name="Ada";greeting="Hello, "+name')
+    assert result is None
+    assert environment == {"name": "Ada", "greeting": "Hello, Ada", "__input": "", "__output": ""}
+
+
+def test_evaluate_input():
+    # ===== CHAPTER 3 TESTS =====
+    print("test evaluate input")
+
+    ast, rest = parser.parse_expression(tokenizer.tokenize("input()"))
+    assert rest[0]["tag"] is None
+    with patch("builtins.input", return_value="one line") as fake_input:
+        assert evaluate(ast, {}) == "one line"
+        fake_input.assert_called_once_with()
+
+    ast, rest = parser.parse_expression(
+        tokenizer.tokenize('input("Your " + "name? ")')
+    )
+    assert rest[0]["tag"] is None
+    with patch("builtins.input", return_value="Ada") as fake_input:
+        assert evaluate(ast, {}) == "Ada"
+        fake_input.assert_called_once_with("Your name? ")
+
+    ast, rest = parser.parse_expression(tokenizer.tokenize("input(42)"))
+    assert rest[0]["tag"] is None
+    with patch("builtins.input") as fake_input:
+        try:
+            evaluate(ast, {})
+        except TypeError as error:
+            assert str(error) == "input prompt must be a string"
+        else:
+            raise Exception("Expected TypeError for non-string input prompt")
+        fake_input.assert_not_called()
+
+
+def test_evaluate_print():
+    # ===== CHAPTER 3 TEST: parser accepts only print(expression) =====
+    print("test evaluate print")
+    output = io.StringIO()
+    with redirect_stdout(output):
+        result, environment = evaluate_source('x="ha"*3;print(x)')
+    assert result is None
+    assert environment == {"x": "hahaha", "__input": "", "__output": "hahaha"}
+    assert output.getvalue() == "hahaha\n"
+
+
+def test_evaluate_chapter_3_program():
+    # ===== CHAPTER 3 INTEGRATION TEST =====
+    print("test evaluate Chapter 3 program")
+    source = """
+        name = input("What is your name? ");
+        greeting = "Hello, " + name + "!";
+        print(greeting);
+        line = input();
+        print("You entered: " + line)
+    """
+
+    output = io.StringIO()
+    with patch("builtins.input", side_effect=["Ada", "testing"] ) as fake_input:
+        with redirect_stdout(output):
+            result, environment = evaluate_source(source)
+
+    assert result is None
+    assert environment == {
+        "name": "Ada",
+        "greeting": "Hello, Ada!",
+        "line": "testing",
+        "__input": "",
+        "__output": "You entered: testing",
+    }
+    assert output.getvalue() == "Hello, Ada!\nYou entered: testing\n"
+    assert fake_input.call_count == 2
+    assert fake_input.call_args_list[0].args == ("What is your name? ",)
+    assert fake_input.call_args_list[1].args == ()
+
+
+if __name__ == "__main__":
+    test_evaluate_numbers()
+    test_evaluate_strings()
+    test_evaluate_environments()
+    test_evaluate_input()
+    test_evaluate_print()
+    test_evaluate_chapter_3_program()
+    print("done.")
+</code></pre></section>
+<section class="source-file" id="file-6578616d706c652e76" aria-labelledby="title-file-6578616d706c652e76" hidden><header class="file-header"><h2 id="title-file-6578616d706c652e76">example.v</h2></header><pre><code>print("Chapter 5: Logical Operators");
+ready = true;
+print(ready);
+print(false);
+
+// Supplied input and numeric conversion still work without a keyboard read.
+__input = "21";
+answer = number(input()) * 2;
+print(answer == 42);
+print(answer != 42);
+print(-1.5 &lt; .5);
+print(answer &lt;= 42.0);
+print(answer &gt; 40 + 1);
+print(answer &gt;= 43);
+
+// String equality and boolean results are ordinary expression values.
+print("ha" * 2 == "haha");
+print("dog" != "cat");
+same = (answer == 42) == ready;
+print(same);
+saved = __output;
+print("Captured: " + saved);
+print("Input cleared: [" + __input + "]");
+print("Answer: " + string(answer));
+
+// Word and symbolic operators have the same precedence and meaning.
+print(answer &gt;= 40 and not false);
+print(answer &lt; 40 || !false &amp;&amp; true);
+print(false &amp;&amp; number(input()) &gt; 0); // Short-circuit: no keyboard read.
+
+// Conversions are explicit; type reports Vertex's three value families.
+print(string(true));
+print(number(true));
+print(boolean(0));
+print(boolean(" FALSE "));
+print(type(answer));
+print(type("42"));
+print(type(answer == 42));
+print("Accepted: " + string(boolean(-2)));
+</code></pre></section>
+<section class="source-file" id="file-7061727365722e7079" aria-labelledby="title-file-7061727365722e7079" hidden><header class="file-header"><h2 id="title-file-7061727365722e7079">parser.py</h2></header><pre><code># parser.py
+
+from tokenizer import tokenize
+
+
+# EBNF
+#
+#   program ::= statement_list
+#   statement_list ::= { ";" } statement { ";" { ";" } statement } { ";" }
+#   statement ::= assignment_statement | print_statement
+#   assignment_statement ::= &lt;identifier&gt; "=" expression
+#
+#   ===== CHAPTER 3: print now requires parentheses =====
+#   print_statement ::= "print" "(" expression ")"
+#
+#   expression ::= logic_or
+#   logic_or ::= logic_and { "or" logic_and }
+#   logic_and ::= logic_not { "and" logic_not }
+#   logic_not ::= "not" logic_not | comparison
+#   comparison ::= arithmetic_expression [ compare_op arithmetic_expression ]
+#   compare_op ::= "==" | "!=" | "&lt;" | "&lt;=" | "&gt;" | "&gt;="
+#   arithmetic_expression ::= term { ("+" | "-") term }
+#   term ::= unary { ("*" | "/") unary }
+#   unary ::= "-" unary | factor
+#
+#   ===== CHAPTER 3: strings and input are expression forms =====
+#   factor ::= &lt;number&gt; | &lt;string&gt; | &lt;identifier&gt; | "true" | "false" | input_expression
+#          | number_expression | string_expression | boolean_expression
+#          | type_expression | "(" expression ")"
+#   input_expression ::= "input" "(" [ expression ] ")"
+#   number_expression ::= "number" "(" expression ")"
+#   string_expression ::= "string" "(" expression ")"
+#   boolean_expression ::= "boolean" "(" expression ")"
+#   type_expression ::= "type" "(" expression ")"
+#
+# input has function-shaped syntax, but this chapter does not implement
+# general function calls, parameters, or function values.
+
+
+def require(tokens, tag, message):
+    if tokens[0]["tag"] != tag:
+        raise SyntaxError(f"{message}, got {tokens[0]}")
+    return tokens[1:]
+
+
+def parse_input_expression(tokens):
+    # ===== CHAPTER 3 =====
+    # input_expression ::= "input" "(" [ expression ] ")"
+    tokens = require(tokens, "input", "Expected 'input'")
+    tokens = require(tokens, "(", "Expected '(' after 'input'")
+
+    if tokens[0]["tag"] == ")":
+        return {"tag": "input", "prompt": None}, tokens[1:]
+
+    prompt, tokens = parse_expression(tokens)
+    tokens = require(tokens, ")", "Expected ')' after input prompt")
+    return {"tag": "input", "prompt": prompt}, tokens
+
+
+def parse_factor(tokens):
+    token = tokens[0]
+    # Both keywords become the same kind of literal node, with different values.
+    if token["tag"] in ("true", "false"):
+        return {"tag": "boolean", "value": token["tag"] == "true"}, tokens[1:]
+    if token["tag"] == "number":
+        return {"tag": "number", "value": token["value"]}, tokens[1:]
+
+    # ===== CHAPTER 3: string expression =====
+    if token["tag"] == "string":
+        return {"tag": "string", "value": token["value"]}, tokens[1:]
+
+    if token["tag"] == "identifier":
+        return {"tag": "identifier", "value": token["value"]}, tokens[1:]
+
+    # ===== CHAPTER 3: dedicated input expression =====
+    if token["tag"] == "input":
+        return parse_input_expression(tokens)
+
+    # All four forms take one expression. The AST retains the operation tag;
+    # checking the argument's runtime type belongs to the evaluator.
+    operations = {"number_conversion": "number", "string_conversion": "string",
+                  "boolean_conversion": "boolean", "type_query": "type"}
+    if token["tag"] in operations:
+        name = operations[token["tag"]]
+        tokens = require(tokens[1:], "(", f"Expected '(' after '{name}'")
+        expression, tokens = parse_expression(tokens)
+        tokens = require(tokens, ")", f"Expected ')' after {name} argument")
+        return {"tag": token["tag"], "expression": expression}, tokens
+
+    if token["tag"] == "(":
+        # Parentheses restart at the lowest-precedence rule, allowing a complete
+        # logical expression wherever a factor is expected.
+        node, tokens = parse_expression(tokens[1:])
+        tokens = require(tokens, ")", "Expected ')'")
+        return node, tokens
+
+    raise SyntaxError(f"Expected factor, got {token}")
+
+
+def parse_unary(tokens):
+    """unary ::= "-" unary | factor"""
+    if tokens[0]["tag"] == "-":
+        operand, tokens = parse_unary(tokens[1:])
+        return {"tag": "unary-", "operand": operand}, tokens
+    return parse_factor(tokens)
+
+
+def parse_term(tokens):
+    """term ::= unary { ("*" | "/") unary }"""
+    left, tokens = parse_unary(tokens)
+    while tokens[0]["tag"] in ["*", "/"]:
+        operator = tokens[0]["tag"]
+        right, tokens = parse_unary(tokens[1:])
+        left = {"tag": operator, "left": left, "right": right}
+    return left, tokens
+
+
+def parse_arithmetic_expression(tokens):
+    """arithmetic_expression ::= term { ("+" | "-") term }"""
+    left, tokens = parse_term(tokens)
+    while tokens[0]["tag"] in ["+", "-"]:
+        operator = tokens[0]["tag"]
+        right, tokens = parse_term(tokens[1:])
+        left = {"tag": operator, "left": left, "right": right}
+    return left, tokens
+
+
+def parse_comparison(tokens):
+    """comparison ::= arithmetic_expression [ compare_op arithmetic_expression ]"""
+    # Arithmetic binds more tightly than comparisons: 1 + 2 &lt; 4 compares 3 to 4.
+    left, tokens = parse_arithmetic_expression(tokens)
+    # One optional operator, not a loop: unparenthesized comparison chains are
+    # deliberately outside this grammar. The unused token will cause an error.
+    if tokens[0]["tag"] in ("==", "!=", "&lt;", "&lt;=", "&gt;", "&gt;="):
+        operator = tokens[0]["tag"]
+        right, tokens = parse_arithmetic_expression(tokens[1:])
+        return {"tag": operator, "left": left, "right": right}, tokens
+    return left, tokens
+
+
+def parse_logic_not(tokens):
+    # Recursive negation accepts "not not x" and "!!x". Falling through to
+    # comparison makes "not x == y" mean "not (x == y)".
+    if tokens[0]["tag"] == "not":
+        operand, tokens = parse_logic_not(tokens[1:])
+        return {"tag": "not", "operand": operand}, tokens
+    return parse_comparison(tokens)
+
+
+def parse_logic_and(tokens):
+    # Each operand comes from the next tighter precedence level. The loop
+    # constructs a left-associated tree without evaluating either operand.
+    left, tokens = parse_logic_not(tokens)
+    while tokens[0]["tag"] == "and":
+        right, tokens = parse_logic_not(tokens[1:])
+        left = {"tag": "and", "left": left, "right": right}
+    return left, tokens
+
+
+def parse_logic_or(tokens):
+    # Parsing an entire conjunction first makes "and" bind more tightly than "or".
+    left, tokens = parse_logic_and(tokens)
+    while tokens[0]["tag"] == "or":
+        right, tokens = parse_logic_and(tokens[1:])
+        left = {"tag": "or", "left": left, "right": right}
+    return left, tokens
+
+
+def parse_expression(tokens):
+    # Every expression context enters through the lowest-precedence rule.
+    # Operator aliases were normalized by the tokenizer, not by these helpers.
+    return parse_logic_or(tokens)
+
+
+def parse_print_statement(tokens):
+    # ===== CHAPTER 3: parentheses are required =====
+    # print_statement ::= "print" "(" expression ")"
+    tokens = require(tokens, "print", "Expected 'print'")
+    tokens = require(tokens, "(", "Expected '(' after 'print'")
+    expression, tokens = parse_expression(tokens)
+    tokens = require(tokens, ")", "Expected ')' after print argument")
+    return {"tag": "print", "expression": expression}, tokens
+
+
+def parse_assignment_statement(tokens):
+    # assignment_statement ::= &lt;identifier&gt; "=" expression
+    if tokens[0]["tag"] != "identifier":
+        raise SyntaxError(f"Expected identifier, got {tokens[0]}")
+    # The target names a destination. It must not read an existing binding;
+    # assigning a name for the first time is valid.
+    identifier = {"tag": "identifier", "value": tokens[0]["value"]}
+    tokens = require(tokens[1:], "=", "Expected '=' for assignment")
+    expression, tokens = parse_expression(tokens)
+    return {
+        "tag": "assign",
+        "target": identifier,
+        "expression": expression,
+    }, tokens
+
+
+def parse_statement(tokens):
+    if tokens[0]["tag"] == "print":
+        return parse_print_statement(tokens)
+    if tokens[0]["tag"] == "identifier":
+        return parse_assignment_statement(tokens)
+    raise SyntaxError(f"Expected statement, got {tokens[0]}")
+
+
+def parse_statement_list(tokens):
+    # statement_list ::= { ";" } statement { ";" { ";" } statement } { ";" }
+    statements = []
+
+    while tokens[0]["tag"] == ";":
+        tokens = tokens[1:]
+
+    statement, tokens = parse_statement(tokens)
+    statements.append(statement)
+
+    while tokens[0]["tag"] == ";":
+        while tokens[0]["tag"] == ";":
+            tokens = tokens[1:]
+        if tokens[0]["tag"] is None:
+            break
+        statement, tokens = parse_statement(tokens)
+        statements.append(statement)
+
+    return {"tag": "statement_list", "statements": statements}, tokens
+
+
+def parse_program(tokens):
+    statements, tokens = parse_statement_list(tokens)
+    return {"tag": "program", "statements": statements}, tokens
+
+
+def parse(tokens):
+    ast, tokens = parse_program(tokens)
+    # A valid prefix is not enough: reject missing separators and extra operators.
+    if tokens[0]["tag"] is not None:
+        raise SyntaxError(f"Unexpected token: {tokens[0]}")
+    return ast
+
+
+def expect_syntax_error(source, text):
+    try:
+        parse(tokenize(source))
+    except SyntaxError as error:
+        assert text in str(error), str(error)
+    else:
+        raise Exception(f"Expected SyntaxError for {source!r}")
+
+
+def test_parse_factor():
+    print("test parse_factor()")
+    ast, rest = parse_factor(tokenize("3"))
+    assert ast == {"tag": "number", "value": 3}
+    assert rest[0]["tag"] is None
+
+    ast, rest = parse_factor(tokenize("(3+4)"))
+    assert ast == {
+        "tag": "+",
+        "left": {"tag": "number", "value": 3},
+        "right": {"tag": "number", "value": 4},
+    }
+    assert rest[0]["tag"] is None
+
+
+def test_parse_strings():
+    # ===== CHAPTER 3 TESTS =====
+    print("test parse strings")
+    ast, rest = parse_expression(tokenize('"dog" * 2 + "!"'))
+    assert ast == {
+        "tag": "+",
+        "left": {
+            "tag": "*",
+            "left": {"tag": "string", "value": "dog"},
+            "right": {"tag": "number", "value": 2},
+        },
+        "right": {"tag": "string", "value": "!"},
+    }
+    assert rest[0]["tag"] is None
+
+
+def test_parse_input_expression():
+    # ===== CHAPTER 3 TESTS =====
+    print("test parse_input_expression()")
+    ast, rest = parse_input_expression(tokenize("input()"))
+    assert ast == {"tag": "input", "prompt": None}
+    assert rest[0]["tag"] is None
+
+    ast, rest = parse_input_expression(tokenize('input("Name? ")'))
+    assert ast == {
+        "tag": "input",
+        "prompt": {"tag": "string", "value": "Name? "},
+    }
+    assert rest[0]["tag"] is None
+
+    ast, rest = parse_expression(tokenize('input("Name? ") + "!"'))
+    assert ast["tag"] == "+"
+    assert ast["left"]["tag"] == "input"
+    assert rest[0]["tag"] is None
+
+    expect_syntax_error("x=input", "Expected '('")
+    expect_syntax_error('x=input("Name? "', "Expected ')'")
+
+
+def test_parse_unary():
+    print("test parse_unary()")
+    ast, rest = parse_unary(tokenize("--3"))
+    assert ast == {
+        "tag": "unary-",
+        "operand": {"tag": "unary-", "operand": {"tag": "number", "value": 3}},
+    }
+    assert rest[0]["tag"] is None
+
+
+def test_parse_term_and_expression():
+    print("test parse term and expression")
+    ast, rest = parse_expression(tokenize("3*4+5-6"))
+    assert ast == {
+        "tag": "-",
+        "left": {
+            "tag": "+",
+            "left": {
+                "tag": "*",
+                "left": {"tag": "number", "value": 3},
+                "right": {"tag": "number", "value": 4},
+            },
+            "right": {"tag": "number", "value": 5},
+        },
+        "right": {"tag": "number", "value": 6},
+    }
+    assert rest[0]["tag"] is None
+
+
+def test_parse_print_statement():
+    # ===== CHAPTER 3 TESTS: only the parenthesized form is valid =====
+    print("test parse_print_statement()")
+    ast, rest = parse_print_statement(tokenize('print("hello")'))
+    assert ast == {
+        "tag": "print",
+        "expression": {"tag": "string", "value": "hello"},
+    }
+    assert rest[0]["tag"] is None
+
+    ast, rest = parse_print_statement(tokenize("print(1+1*3)"))
+    assert ast["tag"] == "print"
+    assert rest[0]["tag"] is None
+
+    expect_syntax_error("print 1", "Expected '('")
+    expect_syntax_error("print(1", "Expected ')'")
+
+
+def test_parse_assignment_statement():
+    print("test parse_assignment_statement()")
+    ast, rest = parse_assignment_statement(tokenize('greeting="Hello"'))
+    assert ast == {
+        "tag": "assign",
+        "target": {"tag": "identifier", "value": "greeting"},
+        "expression": {"tag": "string", "value": "Hello"},
+    }
+    assert rest[0]["tag"] is None
+
+
+def test_parse_statement_list():
+    print("test parse_statement_list()")
+    source = ';;;name=input("Name? ");greeting="Hello, "+name;print(greeting);;;'
+    ast, rest = parse_statement_list(tokenize(source))
+    assert [statement["tag"] for statement in ast["statements"]] == [
+        "assign",
+        "assign",
+        "print",
+    ]
+    assert rest[0]["tag"] is None
+
+    for source in ["", ";;;"]:
+        expect_syntax_error(source, "Expected statement")
+
+
+def test_parse_program():
+    print("test parse program")
+    ast = parse(tokenize('x="ha"*3;print(x)'))
+    assert ast["tag"] == "program"
+    assert len(ast["statements"]["statements"]) == 2
+
+    # Adjacent statements still require a semicolon.
+    expect_syntax_error('x="hello" print(x)', "Unexpected token")
+
+
+if __name__ == "__main__":
+    test_parse_factor()
+    test_parse_strings()
+    test_parse_input_expression()
+    test_parse_unary()
+    test_parse_term_and_expression()
+    test_parse_print_statement()
+    test_parse_assignment_statement()
+    test_parse_statement_list()
+    test_parse_program()
+    print("done.")
+</code></pre></section>
+<section class="source-file" id="file-72756e2d74657374732e7368" aria-labelledby="title-file-72756e2d74657374732e7368" hidden><header class="file-header"><h2 id="title-file-72756e2d74657374732e7368">run-tests.sh</h2></header><pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+python3 tokenizer.py
+python3 parser.py
+python3 evaluator.py
+python3 -m unittest discover -v
+
+actual_output="$(./vertex example.v &lt; /dev/null)"
+expected_output='Chapter 5: Logical Operators
+true
+false
+true
+false
+true
+true
+true
+false
+true
+true
+true
+Captured: true
+Input cleared: []
+Answer: 42
+true
+true
+false
+true
+1
+false
+false
+number
+string
+boolean
+Accepted: true'
+
+if [[ "$actual_output" != "$expected_output" ]]; then
+    echo "example.v output did not match" &gt;&amp;2
+    diff -u &lt;(printf '%s\n' "$expected_output") &lt;(printf '%s\n' "$actual_output")
+    exit 1
+fi
+
+echo "All Chapter 5 tests passed."
+</code></pre></section>
+<section class="source-file" id="file-72756e6e65722e7079" aria-labelledby="title-file-72756e6e65722e7079" hidden><header class="file-header"><h2 id="title-file-72756e6e65722e7079">runner.py</h2></header><pre><code>import sys
+
+from evaluator import evaluate
+from parser import parse
+from tokenizer import tokenize
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python runner.py &lt;program&gt;")
+        sys.exit(1)
+
+    program = sys.argv[1]
+    if program.endswith((".t", ".v")):
+        with open(program, "r") as source_file:
+            program = source_file.read().strip()
+
+    tokens = tokenize(program)
+    ast = parse(tokens)
+    evaluate(ast, {})
+</code></pre></section>
+<section class="source-file" id="file-746573745f61737369676e6d656e745f746172676574732e7079" aria-labelledby="title-file-746573745f61737369676e6d656e745f746172676574732e7079" hidden><header class="file-header"><h2 id="title-file-746573745f61737369676e6d656e745f746172676574732e7079">test_assignment_targets.py</h2></header><pre><code>"""Assignment destinations and print effects in the released interpreter."""
+
+import contextlib
+import io
+import unittest
+
+from evaluator import evaluate
+from parser import parse_assignment_statement, parse_print_statement
+from tokenizer import tokenize
+
+
+class AssignmentTests(unittest.TestCase):
+    def test_target_is_identifier_and_creates_binding(self):
+        tree, _ = parse_assignment_statement(tokenize("x = 2"))
+        self.assertEqual(tree["target"], {"tag": "identifier", "value": "x"})
+        environment = {}
+        self.assertIsNone(evaluate(tree, environment))
+        self.assertEqual(environment["x"], 2)
+
+    def test_reassignment_reads_old_value_only_on_right(self):
+        tree, _ = parse_assignment_statement(tokenize("x = x + 3"))
+        environment = {"x": 2}
+        self.assertIsNone(evaluate(tree, environment))
+        self.assertEqual(environment["x"], 5)
+
+    def test_non_identifier_targets_are_rejected(self):
+        for source in ['"x" = 2', "2 = 3", "(x) = 2"]:
+            with self.subTest(source=source):
+                with self.assertRaises((SyntaxError, AssertionError)):
+                    parse_assignment_statement(tokenize(source))
+
+    def test_string_node_is_not_an_assignment_destination(self):
+        tree = {"tag": "assign", "target": {"tag": "string", "value": "x"},
+                "expression": {"tag": "number", "value": 2}}
+        environment = {}
+        with self.assertRaises(ValueError):
+            evaluate(tree, environment)
+        self.assertEqual(environment, {})
+
+    def test_print_returns_none_and_writes_output(self):
+        tree, _ = parse_print_statement(tokenize("print(3)"))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            result = evaluate(tree, {})
+        self.assertIsNone(result)
+        self.assertEqual(output.getvalue(), "3\n")
+
+
+if __name__ == "__main__":
+    unittest.main()
+</code></pre></section>
+<section class="source-file" id="file-746573745f626f6f6c65616e735f616e645f636f6d70617269736f6e732e7079" aria-labelledby="title-file-746573745f626f6f6c65616e735f616e645f636f6d70617269736f6e732e7079" hidden><header class="file-header"><h2 id="title-file-746573745f626f6f6c65616e735f616e645f636f6d70617269736f6e732e7079">test_booleans_and_comparisons.py</h2></header><pre><code>import io
+import unittest
+from contextlib import redirect_stdout
+from unittest.mock import patch
+
+from evaluator import evaluate_source
+from parser import parse
+from tokenizer import tokenize
+
+
+class BooleanComparisonTests(unittest.TestCase):
+    def value(self, expression):
+        return evaluate_source("result=" + expression)[1]["result"]
+
+    def test_token_order_and_keyword_boundaries(self):
+        tokens = tokenize("== != &lt;= &gt;= &lt; &gt; = true false true_value falsehood")
+        self.assertEqual([t["tag"] for t in tokens],
+                         ["==", "!=", "&lt;=", "&gt;=", "&lt;", "&gt;", "=", "true",
+                          "false", "identifier", "identifier", None])
+        for source in ("true=1", "false=2"):
+            with self.subTest(source=source), self.assertRaises(SyntaxError):
+                parse(tokenize(source))
+
+    def test_literals_and_assignment_nodes(self):
+        self.assertIs(self.value("true"), True)
+        self.assertIs(self.value("false"), False)
+        assignment = parse(tokenize("ready=true"))["statements"]["statements"][0]
+        self.assertEqual(assignment["target"], {"tag": "identifier", "value": "ready"})
+        self.assertEqual(assignment["expression"], {"tag": "boolean", "value": True})
+
+    def test_comparison_values_and_types(self):
+        cases = [("1==1.0", True), ("1==2", False), ("1!=2", True),
+                 ("1!=1", False), ("1&lt;2", True), ("2&lt;1", False),
+                 ("2&lt;=2", True), ("3&lt;=2", False), ("3&gt;2", True),
+                 ("2&gt;3", False), ("2&gt;=2", True), ("2&gt;=3", False),
+                 ('"dog"=="dog"', True), ('"dog"!="cat"', True),
+                 ('"dog"=="cat"', False), ("true==false", False),
+                 ("true!=false", True), ("true==1", False),
+                 ("false==0", False), ('"1"==1', False),
+                 ("-1.5&lt;.5", True), ("1+2*3==7", True),
+                 ('"ha"*2=="haha"', True), ("(1&lt;2)==true", True)]
+        for expression, expected in cases:
+            with self.subTest(expression=expression):
+                self.assertIs(self.value(expression), expected)
+
+    def test_precedence_tree(self):
+        node = parse(tokenize("x=1+2*3&lt;8"))["statements"]["statements"][0]["expression"]
+        self.assertEqual(node["tag"], "&lt;")
+        self.assertEqual(node["left"]["tag"], "+")
+        self.assertEqual(node["left"]["right"]["tag"], "*")
+
+    def test_print_capture(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            _, env = evaluate_source("print(true); saved=__output; print(2&lt;1)")
+        self.assertEqual(output.getvalue(), "true\nfalse\n")
+        self.assertEqual(env["saved"], "true")
+        self.assertEqual(env["__output"], "false")
+
+    def test_input_and_evaluation_order(self):
+        with patch("builtins.input", side_effect=["2", "3"]) as read:
+            self.assertIs(self.value("number(input()) &lt; number(input())"), True)
+        self.assertEqual(read.call_count, 2)
+        with patch("builtins.input") as read:
+            _, env = evaluate_source('__input="2";result=number(input())==2')
+        read.assert_not_called()
+        self.assertIs(env["result"], True)
+        self.assertEqual(env["__input"], "")
+
+    def test_type_errors(self):
+        for expression in ('"a"&lt;"b"', '1&lt;"2"', "true&lt;false", "true+1",
+                           "1-true", '"ha"*true', "false/2", "-true"):
+            with self.subTest(expression=expression), self.assertRaises(TypeError):
+                self.value(expression)
+
+    def test_invalid_syntax(self):
+        for source in ("x=1&lt;2&lt;3", "x=1==2==3", "x=1&lt;", "x=&lt;2",
+                       "x=true and", "x=not", "print true"):
+            with self.subTest(source=source), self.assertRaises(SyntaxError):
+                parse(tokenize(source))
+
+
+if __name__ == "__main__":
+    unittest.main()
+</code></pre></section>
+<section class="source-file" id="file-746573745f636861707465725f325f636f6d7061746962696c6974792e7079" aria-labelledby="title-file-746573745f636861707465725f325f636f6d7061746962696c6974792e7079" hidden><header class="file-header"><h2 id="title-file-746573745f636861707465725f325f636f6d7061746962696c6974792e7079">test_chapter_2_compatibility.py</h2></header><pre><code>import io
+import unittest
+from contextlib import redirect_stdout
+
+from evaluator import evaluate
+from parser import parse
+from tokenizer import tokenize
+
+
+class Chapter2CompatibilityTests(unittest.TestCase):
+    def test_numeric_programs(self):
+        cases = [
+            ("x=2; print(x); y=x+3*4; print(y)", "2\n14\n"),
+            (";;;x=-1.5+.5*5.;;;print(x);;;", "1.0\n"),
+            ("x=--3; x=x+1; print(-(x+2))", "-6\n"),
+            ("x=20/2/2; print(x); print(10-3-2)", "5.0\n5\n"),
+            ("// start\nx=8; // assignment\nprint(x/2)// end", "4.0\n"),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertIsNone(evaluate(parse(tokenize(source)), {}))
+                self.assertEqual(output.getvalue(), expected)
+
+    def test_comment_tokens_and_positions(self):
+        for ending in ("\n", "\r\n", "\r"):
+            tokens = tokenize("8// ignored @ ; /" + ending + "/2")
+            self.assertEqual([t["tag"] for t in tokens], ["number", "/", "number", None])
+        for source in ("//", "// at end", "8 // trailing"):
+            tokens = tokenize(source)
+            self.assertEqual([t["tag"] for t in tokens],
+                             ["number", None] if source.startswith("8") else [None])
+            self.assertEqual(tokens[-1]["column"], len(source) + 1)
+        tokens = tokenize("// first\n  8// second\r\n /2")
+        self.assertEqual((tokens[0]["line"], tokens[0]["column"]), (2, 3))
+        self.assertEqual((tokens[1]["line"], tokens[1]["column"]), (3, 2))
+        self.assertEqual([t["tag"] for t in tokenize("/ /")], ["/", "/", None])
+
+    def test_comments_and_strings(self):
+        tokens = tokenize('"https://example.org" // "unterminated \\q\n"//"')
+        self.assertEqual([t["tag"] for t in tokens], ["string", "string", None])
+        self.assertEqual(tokens[0]["value"], "https://example.org")
+        self.assertEqual(tokens[1]["value"], "//")
+
+    def test_rejected_programs(self):
+        for source in ("", ";;;", "// only a comment", "x=2 print(x)",
+                       "x=2 // ;\nprint(x)", "3=2", "print 2"):
+            with self.subTest(source=source), self.assertRaises(SyntaxError):
+                parse(tokenize(source))
+
+    def test_evaluation_errors(self):
+        for source, error in (("print(missing)", ValueError),
+                              ("x=3/0", ZeroDivisionError)):
+            with self.subTest(source=source), self.assertRaises(error):
+                evaluate(parse(tokenize(source)), {})
+
+
+if __name__ == "__main__":
+    unittest.main()
+</code></pre></section>
+<section class="source-file" id="file-746573745f636f6e76657273696f6e735f616e645f747970652e7079" aria-labelledby="title-file-746573745f636f6e76657273696f6e735f616e645f747970652e7079" hidden><header class="file-header"><h2 id="title-file-746573745f636f6e76657273696f6e735f616e645f747970652e7079">test_conversions_and_type.py</h2></header><pre><code>import unittest
+from unittest.mock import patch
+
+from evaluator import evaluate_source
+from parser import parse
+from tokenizer import tokenize
+
+
+class ConversionAndTypeTests(unittest.TestCase):
+    def value(self, expression):
+        return evaluate_source("result=" + expression)[1]["result"]
+
+    def test_conversion_matrix(self):
+        cases = [('number(2)', 2), ('number(2.5)', 2.5),
+                 ('number(" .5 ")', .5), ('number(true)', 1), ('number(false)', 0),
+                 ('string(2)', '2'), ('string(2.5)', '2.5'), ('string("abc")', 'abc'),
+                 ('string(true)', 'true'), ('string(false)', 'false'),
+                 ('boolean(true)', True), ('boolean(false)', False),
+                 ('boolean(0)', False), ('boolean(-0.0)', False),
+                 ('boolean(-2)', True), ('boolean(.5)', True),
+                 ('boolean(" TrUe ")', True), ('boolean(" FALSE ")', False)]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                result = self.value(source)
+                self.assertEqual(result, expected)
+                self.assertIs(type(result), type(expected))
+
+    def test_invalid_text(self):
+        for source in ('boolean("")', 'boolean("yes")', 'boolean("0")',
+                       'boolean("1")', 'number("true")', 'number("2+3")'):
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                self.value(source)
+
+    def test_type_names(self):
+        for expression, expected in [('42', 'number'), ('2.5', 'number'),
+                                     ('"42"', 'string'), ('true', 'boolean'),
+                                     ('1&lt;2', 'boolean'), ('type(false)', 'string')]:
+            with self.subTest(expression=expression):
+                self.assertEqual(self.value(f'type({expression})'), expected)
+
+    def test_argument_evaluated_once(self):
+        for name, supplied, expected in [('type', 'false', 'string'),
+                                         ('boolean', 'false', False),
+                                         ('string', 'text', 'text'),
+                                         ('number', '42', 42)]:
+            with self.subTest(name=name), patch('builtins.input', return_value=supplied) as read:
+                self.assertEqual(self.value(f'{name}(input())'), expected)
+                read.assert_called_once_with()
+        _, env = evaluate_source('__input="true"; result=type(input())')
+        self.assertEqual(env['result'], 'string')
+        self.assertEqual(env['__input'], '')
+        with self.assertRaises(ValueError):
+            self.value('type(missing)')
+
+    def test_keyword_boundaries_and_syntax(self):
+        self.assertEqual([t['tag'] for t in tokenize('boolean type boolean_value typewriter')],
+                         ['boolean_conversion', 'type_query', 'identifier', 'identifier', None])
+        for name in ('number', 'string', 'boolean', 'type'):
+            for source in (f'x={name}()', f'x={name}(1,2)', f'x={name}(1', f'{name}=1'):
+                with self.subTest(source=source), self.assertRaises(SyntaxError):
+                    parse(tokenize(source))
+
+    def test_explicit_conversion_does_not_change_implicit_rules(self):
+        self.assertEqual(self.value('number(true)+2'), 3)
+        self.assertIs(self.value('boolean(1) and true'), True)
+        self.assertIs(self.value('true==1'), False)
+        for source in ('true+2', '1 and true'):
+            with self.subTest(source=source), self.assertRaises(TypeError):
+                self.value(source)
+
+
+if __name__ == '__main__':
+    unittest.main()
+</code></pre></section>
+<section class="source-file" id="file-746573745f696f5f616e645f6e756d6265722e7079" aria-labelledby="title-file-746573745f696f5f616e645f6e756d6265722e7079" hidden><header class="file-header"><h2 id="title-file-746573745f696f5f616e645f6e756d6265722e7079">test_io_and_number.py</h2></header><pre><code>import io
+import unittest
+from contextlib import redirect_stdout
+from unittest.mock import patch
+
+from evaluator import evaluate_source
+from parser import parse
+from tokenizer import tokenize
+
+
+class InputOutputAndNumberTests(unittest.TestCase):
+    def test_globals_exist_before_first_use(self):
+        _, env = evaluate_source('saved_input=__input;saved_output=__output')
+        self.assertEqual(env, {
+            '__input': '', '__output': '', 'saved_input': '', 'saved_output': '',
+        })
+
+    def test_print_captures_latest_text(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            _, env = evaluate_source('print(42);first=__output;print("a\\nb")')
+        self.assertEqual(output.getvalue(), '42\na\nb\n')
+        self.assertEqual(env['first'], '42')
+        self.assertEqual(env['__output'], 'a\nb')
+
+    def test_supplied_input_is_consumed_once(self):
+        output = io.StringIO()
+        with patch('builtins.input', return_value='keyboard') as read:
+            with redirect_stdout(output):
+                _, env = evaluate_source(
+                    '__input="Ada";a=input("Name? ");cleared=__input;'
+                    'b=input("Next? ");__input="Grace";c=input()'
+                )
+        self.assertEqual([env[key] for key in ('a', 'b', 'c')], ['Ada', 'keyboard', 'Grace'])
+        self.assertEqual(env['cleared'], '')
+        self.assertEqual(env['__input'], '')
+        read.assert_called_once_with('Next? ')
+        self.assertEqual(output.getvalue(), '')
+
+    def test_external_input_and_global_assignment(self):
+        root = {'__input': '21', '__output': 'previous'}
+        local = {'$PARENT': root}
+        with patch('builtins.input') as read, redirect_stdout(io.StringIO()):
+            _, env = evaluate_source(
+                'previous=__output;print(number(input())*2);__input="next"', local
+            )
+        read.assert_not_called()
+        self.assertEqual(env['previous'], 'previous')
+        self.assertEqual(root['__output'], '42')
+        self.assertEqual(root['__input'], 'next')
+        self.assertNotIn('__output', local)
+        self.assertNotIn('__input', local)
+
+    def test_prompt_and_supplied_input_types(self):
+        for source in ('__input="ready";x=input(42)', '__input=42;x=input()'):
+            with self.subTest(source=source), patch('builtins.input') as read:
+                with self.assertRaises(TypeError):
+                    evaluate_source(source)
+                read.assert_not_called()
+
+    def test_number_values_and_types(self):
+        for text, expected in [('42', 42), ('-3', -3), ('+3', 3),
+                               (' 2.5 ', 2.5), ('.5', .5), ('5.', 5.0)]:
+            with self.subTest(text=text):
+                _, env = evaluate_source('value=number(text)', {'text': text})
+                self.assertEqual(env['value'], expected)
+                self.assertIs(type(env['value']), type(expected))
+        _, env = evaluate_source('value="ha"*number("3");numbered=number("1"+"2")')
+        self.assertEqual(env['value'], 'hahaha')
+        self.assertEqual(env['numbered'], 12)
+
+    def test_invalid_number_arguments(self):
+        for text in ('', ' ', 'abc', '1.2.3', '2+3', '1e3', 'nan', 'inf'):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                evaluate_source('x=number(text)', {'text': text})
+        self.assertEqual(evaluate_source('x=number(42)')[1]['x'], 42)
+
+    def test_number_syntax(self):
+        for source in ('x=number', 'x=number()', 'x=number("1"', 'x=number("1","2")'):
+            with self.subTest(source=source), self.assertRaises(SyntaxError):
+                parse(tokenize(source))
+        tokens = tokenize('number numbered number_value')
+        self.assertEqual([t['tag'] for t in tokens],
+                         ['number_conversion', 'identifier', 'identifier', None])
+
+    def test_string_conversion(self):
+        for expression, expected in [('42', '42'), ('-3', '-3'), ('2.5', '2.5'),
+                                     ('5.', '5.0'), ('1+2*3', '7')]:
+            with self.subTest(expression=expression):
+                _, env = evaluate_source(f'value=string({expression})')
+                self.assertEqual(env['value'], expected)
+        _, env = evaluate_source('value="Answer: "+string(number("21")*2)')
+        self.assertEqual(env['value'], 'Answer: 42')
+        for source in ('x=string("42")', 'x=string(input())'):
+            with self.subTest(source=source):
+                self.assertEqual(evaluate_source(source, {'__input': '42'})[1]['x'], '42')
+
+    def test_string_syntax(self):
+        for source in ('x=string', 'x=string()', 'x=string(1', 'x=string(1,2)'):
+            with self.subTest(source=source), self.assertRaises(SyntaxError):
+                parse(tokenize(source))
+        tokens = tokenize('string stringed string_value')
+        self.assertEqual([t['tag'] for t in tokens],
+                         ['string_conversion', 'identifier', 'identifier', None])
+
+
+if __name__ == '__main__':
+    unittest.main()
+</code></pre></section>
+<section class="source-file" id="file-746573745f6c6f676963616c5f6f70657261746f72732e7079" aria-labelledby="title-file-746573745f6c6f676963616c5f6f70657261746f72732e7079" hidden><header class="file-header"><h2 id="title-file-746573745f6c6f676963616c5f6f70657261746f72732e7079">test_logical_operators.py</h2></header><pre><code>import unittest
+from unittest.mock import patch
+
+from evaluator import evaluate_source
+from parser import parse
+from tokenizer import tokenize
+
+
+class LogicalOperatorTests(unittest.TestCase):
+    def value(self, source):
+        return evaluate_source("result=" + source)[1]["result"]
+
+    def test_normalized_tokens(self):
+        tags = [t["tag"] for t in tokenize("and &amp;&amp; or || not ! != android origin notable")]
+        self.assertEqual(tags, ["and", "and", "or", "or", "not", "not", "!=",
+                                "identifier", "identifier", "identifier", None])
+        for source in ("and=1", "or=1", "not=1"):
+            with self.subTest(source=source), self.assertRaises(SyntaxError):
+                parse(tokenize(source))
+
+    def test_same_tree_for_both_spellings(self):
+        words = parse(tokenize("x=not false and true or false"))
+        symbols = parse(tokenize("x=!false &amp;&amp; true || false"))
+        self.assertEqual(words, symbols)
+        node = words["statements"]["statements"][0]["expression"]
+        self.assertEqual(node["tag"], "or")
+        self.assertEqual(node["left"]["tag"], "and")
+        self.assertEqual(node["left"]["left"]["tag"], "not")
+
+    def test_truth_tables(self):
+        for left in (False, True):
+            for right in (False, True):
+                for operator in ("and", "&amp;&amp;", "or", "||"):
+                    expected = (left and right) if operator in ("and", "&amp;&amp;") else (left or right)
+                    source = f"{str(left).lower()} {operator} {str(right).lower()}"
+                    with self.subTest(source=source):
+                        self.assertIs(self.value(source), expected)
+            for operator in ("not ", "!"):
+                self.assertIs(self.value(operator + str(left).lower()), not left)
+
+    def test_precedence_and_repeated_negation(self):
+        for source, expected in [("true or false and false", True),
+                                 ("(true or false) and false", False),
+                                 ("not 1+2*3==7", False),
+                                 ("!1!=2", False), ("!!true", True),
+                                 ("not !false", False),
+                                 ("1&lt;2 &amp;&amp; 3&gt;=3 or false", True)]:
+            with self.subTest(source=source):
+                self.assertIs(self.value(source), expected)
+
+    def test_short_circuit_skips_errors_and_input(self):
+        # A skipped child is never evaluated, including its runtime type checks.
+        for source, expected in [("false and missing", False),
+                                 ("true or 1/0==0", True),
+                                 ("false &amp;&amp; input()", False),
+                                 ("true || input()", True)]:
+            with self.subTest(source=source), patch("builtins.input") as read:
+                self.assertIs(self.value(source), expected)
+                read.assert_not_called()
+        _, env = evaluate_source('__input="ready";x=false and input()=="ready"')
+        self.assertEqual(env["__input"], "ready")
+
+    def test_needed_right_operand_runs_once(self):
+        for source in ('true and input()=="yes"', 'false || input()=="yes"'):
+            with self.subTest(source=source), patch("builtins.input", return_value="yes") as read:
+                self.assertIs(self.value(source), True)
+                read.assert_called_once_with()
+
+    def test_boolean_operands_required(self):
+        for source in ("not 1", '!"text"', "1 and true", "0 or false",
+                       "true and 2", 'false || "text"'):
+            with self.subTest(source=source), self.assertRaises(TypeError):
+                self.value(source)
+
+    def test_incomplete_operators(self):
+        for source in ("x=true &amp;&amp;", "x=false or", "x=!", "x=and true",
+                       "x=true &amp; false", "x=true | false"):
+            with self.subTest(source=source), self.assertRaises(SyntaxError):
+                parse(tokenize(source))
+
+
+if __name__ == "__main__":
+    unittest.main()
+</code></pre></section>
+<section class="source-file" id="file-746f6b656e697a65722e7079" aria-labelledby="title-file-746f6b656e697a65722e7079" hidden><header class="file-header"><h2 id="title-file-746f6b656e697a65722e7079">tokenizer.py</h2></header><pre><code>import re
+
+
+# At each source position, the first matching pattern wins.
+# Longer operators and reserved words therefore precede their shorter matches.
+patterns = [
+    (r"\s+", "whitespace"),
+    (r"//[^\r\n]*", "comment"),  # Before division; leave the line ending for whitespace.
+
+    # ===== CHAPTER 3: string literals =====
+    # Strings use double quotes and stay on one source line.
+    (r'"(?:\\[^\r\n]|[^"\\\r\n])*"', "string"),
+
+    (r"\d*\.\d+|\d+\.\d*|\d+", "number"),
+    (r"==", "=="),
+    # Inequality must win over the single-character spelling of "not".
+    (r"!=", "!="),
+    # Normalize both spellings here, so the parser only needs word-form tags.
+    # Word boundaries keep names such as "android" and "notable" intact.
+    (r"and\b|&amp;&amp;", "and"),
+    (r"or\b|\|\|", "or"),
+    (r"not\b|!", "not"),
+    (r"&lt;=", "&lt;="),
+    (r"&gt;=", "&gt;="),
+    (r"&lt;", "&lt;"),
+    (r"&gt;", "&gt;"),
+    (r"\+", "+"),
+    (r"\-", "-"),
+    (r"\/", "/"),
+    (r"\*", "*"),
+    (r"\(", "("),
+    (r"\)", ")"),
+    (r"\=", "="),
+    (r"\;", ";"),
+    (r"print\b", "print"),
+    (r"true\b", "true"),
+    (r"false\b", "false"),
+
+    # ===== CHAPTER 3: input expression =====
+    # input is a dedicated expression form for now, not a general function.
+    (r"input\b", "input"),
+    (r"number\b", "number_conversion"),
+    (r"string\b", "string_conversion"),
+    (r"boolean\b", "boolean_conversion"),
+    (r"type\b", "type_query"),
+
+    (r"[a-zA-Z_][\w]*", "identifier"),
+    (r".", "error"),
+]
+
+patterns = [(re.compile(pattern), tag) for pattern, tag in patterns]
+
+
+def decode_string(text, line, column):
+    # The tokenizer has already matched the surrounding quotes. Decode only
+    # Vertex's supported escapes, not the full Python string-literal language.
+    escapes = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "\\": "\\"}
+    result = ""
+    position = 1
+    while position &lt; len(text) - 1:
+        character = text[position]
+        if character == "\\":
+            position += 1
+            character = text[position]
+            if character not in escapes:
+                raise SyntaxError(
+                    f"Unknown escape \\{character} at line {line}, "
+                    f"column {column + position - 1}"
+                )
+            character = escapes[character]
+        # Append the decoded character once; do not interpret it again.
+        result += character
+        position += 1
+    return result
+
+
+def tokenize(characters):
+    "Tokenize a string using the patterns above"
+    tokens = []
+    position = 0
+    line = 1
+    column = 1
+
+    while position &lt; len(characters):
+        match = None
+        current_tag = None
+        for pattern, tag in patterns:
+            # Match at this position, never search past an unrecognized character.
+            match = pattern.match(characters, position)
+            if match:
+                current_tag = tag
+                break
+        assert match is not None
+        value = match.group(0)
+
+        if current_tag == "error":
+            raise SyntaxError(f"Unexpected character: {value!r}")
+
+        # Comments and whitespace advance through the source but produce no token.
+        # A string is matched as a whole, so "//" inside it is not a comment.
+        if current_tag not in ("whitespace", "comment"):
+            token = {"tag": current_tag, "line": line, "column": column}
+            if current_tag == "number":
+                token["value"] = float(value) if "." in value else int(value)
+            elif current_tag == "string":
+                token["value"] = decode_string(value, line, column)
+            elif current_tag == "identifier":
+                token["value"] = value
+            tokens.append(token)
+
+        # Count source characters, not decoded string characters. An escaped
+        # newline in a string does not move the following token to another line.
+        for character in value:
+            if character == "\n":
+                line += 1
+                column = 1
+            else:
+                column += 1
+        position = match.end()
+
+    # An explicit end marker lets parser helpers inspect the next token safely.
+    tokens.append({"tag": None, "line": line, "column": column})
+    return tokens
+
+
+def test_digits():
+    print("test tokenize digits")
+    tokens = tokenize("123")
+    assert tokens[0]["tag"] == "number"
+    assert tokens[0]["value"] == 123
+    assert tokens[1]["tag"] is None
+
+
+def test_floats():
+    print("test tokenize floats")
+    for text, expected in [("1.5", 1.5), (".5", 0.5), ("5.", 5.0)]:
+        tokens = tokenize(text)
+        assert tokens[0]["tag"] == "number"
+        assert tokens[0]["value"] == expected
+        assert tokens[1]["tag"] is None
+
+
+def test_strings():
+    # ===== CHAPTER 3 TESTS =====
+    print("test tokenize strings")
+    tokens = tokenize(r'"hello" "line\nfeed" "say \"hello\""')
+    assert [token["tag"] for token in tokens] == [
+        "string",
+        "string",
+        "string",
+        None,
+    ]
+    assert tokens[0]["value"] == "hello"
+    assert tokens[1]["value"] == "line\nfeed"
+    assert tokens[2]["value"] == 'say "hello"'
+
+
+def test_string_escapes():
+    print("test string escapes")
+    for source, expected in [
+        ('""', ""),
+        (r'"\n\t\r\"\\"', '\n\t\r"\\'),
+        (r'"\\n"', "\\n"),
+        (r'"ends\\"', "ends\\"),
+        ('"plain text"', "plain text"),
+    ]:
+        assert tokenize(source)[0]["value"] == expected
+
+    for escape in [r"\q", r"\x41", r"\u0041", r"\101", r"\b", r"\'"]:
+        try:
+            tokenize('\n  "' + escape + '"')
+        except SyntaxError as error:
+            assert "Unknown escape" in str(error)
+            assert "line 2, column 4" in str(error)
+        else:
+            raise AssertionError(f"Accepted unsupported escape: {escape}")
+
+    for source in ['"a\nb"', '"a\rb"', '"a\r\nb"', '"a\\\nb"', '"a\\\rb"', '"ends\\"']:
+        try:
+            tokenize(source)
+        except SyntaxError:
+            pass
+        else:
+            raise AssertionError(f"Accepted malformed string: {source!r}")
+
+    tokens = tokenize(r'"\n" next')
+    assert tokens[1]["line"] == 1
+    assert tokens[1]["column"] == 6
+
+
+def test_operators():
+    print("test tokenize operators")
+    tokens = tokenize("+ - * / ( ) = ;")
+    tags = [token["tag"] for token in tokens]
+    assert tags == ["+", "-", "*", "/", "(", ")", "=", ";", None]
+
+
+def test_keywords():
+    print("test tokenize keywords")
+    tokens = tokenize("print input printer input_value")
+    tags = [token["tag"] for token in tokens]
+    assert tags == ["print", "input", "identifier", "identifier", None]
+    assert tokens[2]["value"] == "printer"
+    assert tokens[3]["value"] == "input_value"
+
+
+def test_identifiers():
+    print("test tokenize identifiers")
+    tokens = tokenize("foo bar baz")
+    tags = [token["tag"] for token in tokens]
+    assert tags == ["identifier", "identifier", "identifier", None]
+    assert tokens[0]["value"] == "foo"
+    assert tokens[2]["value"] == "baz"
+
+
+def test_expressions():
+    print("test tokenize expressions")
+    tokens = tokenize('"dog"*2+"!"')
+    assert [token["tag"] for token in tokens] == [
+        "string",
+        "*",
+        "number",
+        "+",
+        "string",
+        None,
+    ]
+
+
+def test_whitespace():
+    print("test tokenize whitespace")
+    tokens = tokenize("1 +\t2  \n*    3")
+    assert [token["tag"] for token in tokens] == [
+        "number",
+        "+",
+        "number",
+        "*",
+        "number",
+        None,
+    ]
+
+
+def test_error():
+    print("test tokenize error")
+    try:
+        tokenize("1@@@")
+    except SyntaxError as error:
+        assert str(error) == "Unexpected character: '@'"
+    else:
+        raise Exception("Expected SyntaxError")
+
+
+def test_unterminated_string():
+    # ===== CHAPTER 3 TEST =====
+    print("test unterminated string")
+    try:
+        tokenize('"never closed')
+    except SyntaxError as error:
+        assert str(error) == "Unexpected character: '\"'"
+    else:
+        raise Exception("Expected SyntaxError")
+
+
+if __name__ == "__main__":
+    test_digits()
+    test_floats()
+    test_strings()
+    test_string_escapes()
+    test_operators()
+    test_keywords()
+    test_expressions()
+    test_identifiers()
+    test_whitespace()
+    test_error()
+    test_unterminated_string()
+    print("done.")
+</code></pre></section>
+<section class="source-file" id="file-766572746578" aria-labelledby="title-file-766572746578" hidden><header class="file-header"><h2 id="title-file-766572746578">vertex</h2></header><pre><code>#!/usr/bin/env bash
+exec python3 "$(dirname "$0")/runner.py" "$@"
+</code></pre></section></div>
+</div>
+<p>The files are available in the <a href="https://github.com/kentcs/structures/tree/main/chapter-05-logical-operators/code">course repository</a>.</p>
+</main>
+<script>
+const links = [...document.querySelectorAll('nav a')];
+const panels = [...document.querySelectorAll('.source-file')];
+function showFile() {
+ const selected = links.find(link => link.hash === location.hash) || links[0];
+ if (!selected) return;
+ for (const link of links) link === selected ? link.setAttribute('aria-current', 'true') : link.removeAttribute('aria-current');
+ for (const panel of panels) panel.hidden = '#' + panel.id !== selected.hash;
+}
+window.addEventListener('hashchange', showFile);
+showFile();
+</script>
+</body>
+</html>
