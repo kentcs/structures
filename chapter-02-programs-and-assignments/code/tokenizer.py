@@ -147,9 +147,11 @@ def test_comments():
         assert tokens[2]["value"] == 2
     for source in ("//", "// comment at end", "8 // trailing comment"):
         tokens = tokenize(source)
-        assert [token["tag"] for token in tokens] == (
-            ["number", None] if source.startswith("8") else [None]
-        )
+        if source.startswith("8"):
+            expected_tags = ["number", None]
+        else:
+            expected_tags = [None]
+        assert [token["tag"] for token in tokens] == expected_tags
         assert tokens[-1]["column"] == len(source) + 1
     tokens = tokenize("// first\n  8// second\r\n /2")
     assert (tokens[0]["line"], tokens[0]["column"]) == (2, 3)

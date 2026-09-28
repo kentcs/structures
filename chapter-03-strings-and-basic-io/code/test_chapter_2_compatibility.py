@@ -29,8 +29,11 @@ class Chapter2CompatibilityTests(unittest.TestCase):
             self.assertEqual([t["tag"] for t in tokens], ["number", "/", "number", None])
         for source in ("//", "// at end", "8 // trailing"):
             tokens = tokenize(source)
-            self.assertEqual([t["tag"] for t in tokens],
-                             ["number", None] if source.startswith("8") else [None])
+            if source.startswith("8"):
+                expected_tags = ["number", None]
+            else:
+                expected_tags = [None]
+            self.assertEqual([t["tag"] for t in tokens], expected_tags)
             self.assertEqual(tokens[-1]["column"], len(source) + 1)
         tokens = tokenize("// first\n  8// second\r\n /2")
         self.assertEqual((tokens[0]["line"], tokens[0]["column"]), (2, 3))

@@ -31,7 +31,10 @@ class LogicalOperatorTests(unittest.TestCase):
         for left in (False, True):
             for right in (False, True):
                 for operator in ("and", "&&", "or", "||"):
-                    expected = (left and right) if operator in ("and", "&&") else (left or right)
+                    if operator in ("and", "&&"):
+                        expected = left and right
+                    else:
+                        expected = left or right
                     source = f"{str(left).lower()} {operator} {str(right).lower()}"
                     with self.subTest(source=source):
                         self.assertIs(self.value(source), expected)
