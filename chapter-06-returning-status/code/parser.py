@@ -7,22 +7,34 @@ from tokenizer import tokenize
 #
 #   program ::= statement_list
 #   statement_list ::= { ";" } statement { ";" { ";" } statement } { ";" }
-#   statement ::= assignment_statement | print_statement
+#   statement ::= assignment_statement | print_statement | exit_expression
+#               | assert_statement
+#   assert_statement ::= "assert" expression "," <string>
 #   assignment_statement ::= <identifier> "=" expression
 #
 #   ===== CHAPTER 3: print now requires parentheses =====
 #   print_statement ::= "print" "(" expression ")"
 #
-#   expression ::= term { ("+" | "-") term }
+#   expression ::= logic_or
+#   logic_or ::= logic_and { "or" logic_and }
+#   logic_and ::= logic_not { "and" logic_not }
+#   logic_not ::= "not" logic_not | comparison
+#   comparison ::= arithmetic_expression [ compare_op arithmetic_expression ]
+#   compare_op ::= "==" | "!=" | "<" | "<=" | ">" | ">="
+#   arithmetic_expression ::= term { ("+" | "-") term }
 #   term ::= unary { ("*" | "/") unary }
 #   unary ::= "-" unary | factor
 #
 #   ===== CHAPTER 3: strings and input are expression forms =====
-#   factor ::= <number> | <string> | <identifier> | input_expression
-#          | number_expression | string_expression | "(" expression ")"
+#   factor ::= <number> | <string> | <identifier> | "true" | "false" | input_expression
+#          | number_expression | string_expression | boolean_expression
+#          | type_expression | exit_expression | "(" expression ")"
+#   exit_expression ::= "exit" "(" [ expression ] ")"
 #   input_expression ::= "input" "(" [ expression ] ")"
 #   number_expression ::= "number" "(" expression ")"
 #   string_expression ::= "string" "(" expression ")"
+#   boolean_expression ::= "boolean" "(" expression ")"
+#   type_expression ::= "type" "(" expression ")"
 #
 # input has function-shaped syntax, but this chapter does not implement
 # general function calls, parameters, or function values.
@@ -50,6 +62,11 @@ def parse_input_expression(tokens):
 
 def parse_factor(tokens):
     token = tokens[0]
+    if token["tag"] == "exit":
+        return parse_exit_expression(tokens)
+    # Both keywords become the same kind of literal node, with different values.
+    if token["tag"] in ("true", "false"):
+        return {"tag": "boolean", "value": token["tag"] == "true"}, tokens[1:]
     if token["tag"] == "number":
         return {"tag": "number", "value": token["value"]}, tokens[1:]
 
@@ -64,17 +81,20 @@ def parse_factor(tokens):
     if token["tag"] == "input":
         return parse_input_expression(tokens)
 
-    if token["tag"] in ("number_conversion", "string_conversion"):
-        if token["tag"] == "number_conversion":
-            name = "number"
-        else:
-            name = "string"
+    # All four forms take one expression. The AST retains the operation tag;
+    # checking the argument's runtime type belongs to the evaluator.
+    operations = {"number_conversion": "number", "string_conversion": "string",
+                  "boolean_conversion": "boolean", "type_query": "type"}
+    if token["tag"] in operations:
+        name = operations[token["tag"]]
         tokens = require(tokens[1:], "(", f"Expected '(' after '{name}'")
         expression, tokens = parse_expression(tokens)
         tokens = require(tokens, ")", f"Expected ')' after {name} argument")
         return {"tag": token["tag"], "expression": expression}, tokens
 
     if token["tag"] == "(":
+        # Parentheses restart at the lowest-precedence rule, allowing a complete
+        # logical expression wherever a factor is expected.
         node, tokens = parse_expression(tokens[1:])
         tokens = require(tokens, ")", "Expected ')'")
         return node, tokens
@@ -100,14 +120,61 @@ def parse_term(tokens):
     return left, tokens
 
 
-def parse_expression(tokens):
-    """expression ::= term { ("+" | "-") term }"""
+def parse_arithmetic_expression(tokens):
+    """arithmetic_expression ::= term { ("+" | "-") term }"""
     left, tokens = parse_term(tokens)
     while tokens[0]["tag"] in ["+", "-"]:
         operator = tokens[0]["tag"]
         right, tokens = parse_term(tokens[1:])
         left = {"tag": operator, "left": left, "right": right}
     return left, tokens
+
+
+def parse_comparison(tokens):
+    """comparison ::= arithmetic_expression [ compare_op arithmetic_expression ]"""
+    # Arithmetic binds more tightly than comparisons: 1 + 2 < 4 compares 3 to 4.
+    left, tokens = parse_arithmetic_expression(tokens)
+    # One optional operator, not a loop: unparenthesized comparison chains are
+    # deliberately outside this grammar. The unused token will cause an error.
+    if tokens[0]["tag"] in ("==", "!=", "<", "<=", ">", ">="):
+        operator = tokens[0]["tag"]
+        right, tokens = parse_arithmetic_expression(tokens[1:])
+        return {"tag": operator, "left": left, "right": right}, tokens
+    return left, tokens
+
+
+def parse_logic_not(tokens):
+    # Recursive negation accepts "not not x" and "!!x". Falling through to
+    # comparison makes "not x == y" mean "not (x == y)".
+    if tokens[0]["tag"] == "not":
+        operand, tokens = parse_logic_not(tokens[1:])
+        return {"tag": "not", "operand": operand}, tokens
+    return parse_comparison(tokens)
+
+
+def parse_logic_and(tokens):
+    # Each operand comes from the next tighter precedence level. The loop
+    # constructs a left-associated tree without evaluating either operand.
+    left, tokens = parse_logic_not(tokens)
+    while tokens[0]["tag"] == "and":
+        right, tokens = parse_logic_not(tokens[1:])
+        left = {"tag": "and", "left": left, "right": right}
+    return left, tokens
+
+
+def parse_logic_or(tokens):
+    # Parsing an entire conjunction first makes "and" bind more tightly than "or".
+    left, tokens = parse_logic_and(tokens)
+    while tokens[0]["tag"] == "or":
+        right, tokens = parse_logic_and(tokens[1:])
+        left = {"tag": "or", "left": left, "right": right}
+    return left, tokens
+
+
+def parse_expression(tokens):
+    # Every expression context enters through the lowest-precedence rule.
+    # Operator aliases were normalized by the tokenizer, not by these helpers.
+    return parse_logic_or(tokens)
 
 
 def parse_print_statement(tokens):
@@ -124,6 +191,8 @@ def parse_assignment_statement(tokens):
     # assignment_statement ::= <identifier> "=" expression
     if tokens[0]["tag"] != "identifier":
         raise SyntaxError(f"Expected identifier, got {tokens[0]}")
+    # The target names a destination. It must not read an existing binding;
+    # assigning a name for the first time is valid.
     identifier = {"tag": "identifier", "value": tokens[0]["value"]}
     tokens = require(tokens[1:], "=", "Expected '=' for assignment")
     expression, tokens = parse_expression(tokens)
@@ -135,11 +204,40 @@ def parse_assignment_statement(tokens):
 
 
 def parse_statement(tokens):
+    if tokens[0]["tag"] == "assert":
+        return parse_assert_statement(tokens)
+    if tokens[0]["tag"] == "exit":
+        return parse_exit_expression(tokens)
     if tokens[0]["tag"] == "print":
         return parse_print_statement(tokens)
     if tokens[0]["tag"] == "identifier":
         return parse_assignment_statement(tokens)
     raise SyntaxError(f"Expected statement, got {tokens[0]}")
+
+
+def parse_assert_statement(tokens):
+    # The required explanation is a string literal, not another computation.
+    tokens = require(tokens, "assert", "Expected 'assert'")
+    expression, tokens = parse_expression(tokens)
+    tokens = require(tokens, ",", "Expected ',' and explanation string after assertion")
+    if tokens[0]["tag"] != "string":
+        raise SyntaxError("Expected explanation string after ','")
+    explanation = tokens[0]["value"]
+    tokens = tokens[1:]
+    return {"tag": "assert", "expression": expression,
+            "explanation": explanation}, tokens
+
+
+def parse_exit_expression(tokens):
+    # A dedicated expression, also allowed as a standalone statement.
+    # Nesting it in an operand makes status propagation observable.
+    tokens = require(tokens, "exit", "Expected 'exit'")
+    tokens = require(tokens, "(", "Expected '(' after 'exit'")
+    if tokens[0]["tag"] == ")":
+        return {"tag": "exit", "expression": None}, tokens[1:]
+    expression, tokens = parse_expression(tokens)
+    tokens = require(tokens, ")", "Expected ')' after exit argument")
+    return {"tag": "exit", "expression": expression}, tokens
 
 
 def parse_statement_list(tokens):
@@ -170,6 +268,7 @@ def parse_program(tokens):
 
 def parse(tokens):
     ast, tokens = parse_program(tokens)
+    # A valid prefix is not enough: reject missing separators and extra operators.
     if tokens[0]["tag"] is not None:
         raise SyntaxError(f"Unexpected token: {tokens[0]}")
     return ast

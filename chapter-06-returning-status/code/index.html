@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Code: Logical Operators</title>
+<title>Code: Returning Status</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; color: #172b36; background: #f5f7f9; font: 16px/1.5 system-ui, sans-serif; }
@@ -31,17 +31,19 @@ code { font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 <body>
 <main>
 <a href="../index.html">Back to chapter</a>
-<h1>Logical Operators: Code</h1>
+<h1>Returning Status: Code</h1>
 <div class="browser">
 <nav aria-label="Files"><ul><li><a href="#file-6576616c7561746f722e7079">evaluator.py</a></li>
 <li><a href="#file-6578616d706c652e76">example.v</a></li>
 <li><a href="#file-7061727365722e7079">parser.py</a></li>
 <li><a href="#file-72756e2d74657374732e7368">run-tests.sh</a></li>
 <li><a href="#file-72756e6e65722e7079">runner.py</a></li>
+<li><a href="#file-746573745f617373657274696f6e732e7079">test_assertions.py</a></li>
 <li><a href="#file-746573745f61737369676e6d656e745f746172676574732e7079">test_assignment_targets.py</a></li>
 <li><a href="#file-746573745f626f6f6c65616e735f616e645f636f6d70617269736f6e732e7079">test_booleans_and_comparisons.py</a></li>
 <li><a href="#file-746573745f636861707465725f325f636f6d7061746962696c6974792e7079">test_chapter_2_compatibility.py</a></li>
 <li><a href="#file-746573745f636f6e76657273696f6e735f616e645f747970652e7079">test_conversions_and_type.py</a></li>
+<li><a href="#file-746573745f6576616c756174696f6e5f7374617475732e7079">test_evaluation_status.py</a></li>
 <li><a href="#file-746573745f696f5f616e645f6e756d6265722e7079">test_io_and_number.py</a></li>
 <li><a href="#file-746573745f6c6f676963616c5f6f70657261746f72732e7079">test_logical_operators.py</a></li>
 <li><a href="#file-746f6b656e697a65722e7079">tokenizer.py</a></li>
@@ -49,6 +51,7 @@ code { font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 <div class="viewer"><section class="source-file" id="file-6576616c7561746f722e7079" aria-labelledby="title-file-6576616c7561746f722e7079"><header class="file-header"><h2 id="title-file-6576616c7561746f722e7079">evaluator.py</h2></header><pre><code>import builtins
 import io
 import re
+import sys
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
@@ -65,48 +68,88 @@ def global_environment(environment):
 
 
 def evaluate(ast, environment):
+    """Return (value, status); None means evaluation completed normally.
+
+    A special status is propagated before any remaining computation or effect.
+    Only the structure responsible for that status may consume it. For now,
+    exit travels through the program to the runner, as in the old interpreter.
+
+    The status check after each child evaluation is repeated on purpose: evaluate
+    a child, and if its status is not None, return that pair before doing more.
+    """
+    if ast["tag"] == "assert":
+        # An exit during the condition takes precedence over assertion handling.
+        value, status = evaluate(ast["expression"], environment)
+        if status is not None:
+            return value, status
+        if type(value) is not bool:
+            raise TypeError("assert requires a boolean expression")
+        if value:
+            return None, None
+        message = "Assertion failed: " + ast["explanation"]
+        # Report here, then request ordinary program exit. No exception payload
+        # needs to travel through the tree because Vertex has no catch mechanism.
+        print(message, file=sys.stderr)
+        return 1, "exit"
+
+    if ast["tag"] == "exit":
+        value = 0
+        if ast["expression"] is not None:
+            value, status = evaluate(ast["expression"], environment)
+            if status is not None:
+                return value, status
+        if type(value) is not int:
+            raise TypeError("exit code must be an integer")
+        return value, "exit"
+
     if ast["tag"] == "boolean":
-        return ast["value"]
+        return ast["value"], None
 
     if ast["tag"] == "not":
         # Do not let Python coerce numbers or strings to truth values for Vertex.
-        value = evaluate(ast["operand"], environment)
+        value, status = evaluate(ast["operand"], environment)
+        if status is not None:
+            return value, status
         if type(value) is not bool:
             raise TypeError("not requires a boolean operand")
-        return not value
+        return not value, None
 
     if ast["tag"] in ("and", "or"):
         # Evaluate and validate the left operand before considering the right.
         # An eager evaluation of both children would consume input even when
         # that input cannot affect the result.
-        left = evaluate(ast["left"], environment)
+        left, status = evaluate(ast["left"], environment)
+        if status is not None:
+            return left, status
         if type(left) is not bool:
             raise TypeError(f"{ast['tag']} requires boolean operands")
         # Do not evaluate the right side when the left already decides the result.
         if ast["tag"] == "and" and not left:
-            return False
+            return False, None
         if ast["tag"] == "or" and left:
-            return True
-        right = evaluate(ast["right"], environment)
+            return True, None
+        right, status = evaluate(ast["right"], environment)
+        if status is not None:
+            return right, status
         if type(right) is not bool:
             raise TypeError(f"{ast['tag']} requires boolean operands")
         # Only true-and-right and false-or-right reach here. In both cases the
         # validated right boolean is also the result of the whole expression.
-        return right
+        return right, None
 
     if ast["tag"] == "number":
-        return ast["value"]
+        return ast["value"], None
 
     # ===== CHAPTER 3: strings are values =====
     if ast["tag"] == "string":
-        return ast["value"]
+        return ast["value"], None
 
     if ast["tag"] == "identifier":
         identifier = ast["value"]
         env = environment
         while True:
             if identifier in env:
-                return env[identifier]
+                return env[identifier], None
             if "$PARENT" in env:
                 env = env["$PARENT"]
                 continue
@@ -117,7 +160,9 @@ def evaluate(ast, environment):
         prompt_ast = ast["prompt"]
         prompt = None
         if prompt_ast is not None:
-            prompt = evaluate(prompt_ast, environment)
+            prompt, status = evaluate(prompt_ast, environment)
+            if status is not None:
+                return prompt, status
         if prompt_ast is not None and not isinstance(prompt, str):
             raise TypeError("input prompt must be a string")
         supplied = global_environment(environment).get("__input", "")
@@ -126,68 +171,78 @@ def evaluate(ast, environment):
         if supplied != "":
             # Clear before returning so a later input expression cannot reuse it.
             global_environment(environment)["__input"] = ""
-            return supplied
+            return supplied, None
         if prompt_ast is None:
-            return builtins.input()
-        return builtins.input(prompt)
+            return builtins.input(), None
+        return builtins.input(prompt), None
 
     if ast["tag"] == "type_query":
         # Evaluate exactly once: type(input()) still consumes input. Report
         # Vertex types, not Python's distinction between int and float.
-        value = evaluate(ast["expression"], environment)
+        value, status = evaluate(ast["expression"], environment)
+        if status is not None:
+            return value, status
         if type(value) is bool:
-            return "boolean"
+            return "boolean", None
         if type(value) in (int, float):
-            return "number"
+            return "number", None
         if type(value) is str:
-            return "string"
+            return "string", None
         raise TypeError("type argument must be a Vertex value")
 
     if ast["tag"] == "string_conversion":
-        value = evaluate(ast["expression"], environment)
+        value, status = evaluate(ast["expression"], environment)
+        if status is not None:
+            return value, status
         if type(value) is bool:
             if value:
-                return "true"
-            return "false"
+                return "true", None
+            return "false", None
         if type(value) in (int, float, str):
-            return str(value)
+            return str(value), None
         raise TypeError("string argument must be a number, string, or boolean")
 
     if ast["tag"] == "number_conversion":
-        value = evaluate(ast["expression"], environment)
+        value, status = evaluate(ast["expression"], environment)
+        if status is not None:
+            return value, status
         # Explicit conversion permits booleans as 1/0 without making them
         # implicit arithmetic operands. Existing numbers retain their type.
         if type(value) is bool:
             if value:
-                return 1
-            return 0
+                return 1, None
+            return 0, None
         if type(value) in (int, float):
-            return value
+            return value, None
         if type(value) is not str:
             raise TypeError("number argument must be a number, string, or boolean")
         text = value.strip()
         if not re.fullmatch(r"[+-]?(?:\d*\.\d+|\d+\.\d*|\d+)", text):
             raise ValueError(f"Invalid number: {value!r}")
         if "." in text:
-            return float(text)
-        return int(text)
+            return float(text), None
+        return int(text), None
 
     if ast["tag"] == "boolean_conversion":
-        value = evaluate(ast["expression"], environment)
+        value, status = evaluate(ast["expression"], environment)
+        if status is not None:
+            return value, status
         if type(value) is bool:
-            return value
+            return value, None
         if type(value) in (int, float):
-            return value != 0
+            return value != 0, None
         if type(value) is str:
             # Do not use Python's bool(text): even "false" would become true.
             text = value.strip().lower()
             if text in ("true", "false"):
-                return text == "true"
+                return text == "true", None
             raise ValueError(f"Invalid boolean: {value!r}")
         raise TypeError("boolean argument must be a number, string, or boolean")
 
     if ast["tag"] == "assign":
-        value = evaluate(ast["expression"], environment)
+        value, status = evaluate(ast["expression"], environment)
+        if status is not None:
+            return value, status
         target = ast["target"]
         if target["tag"] != "identifier":
             raise ValueError("Assignment requires an identifier destination")
@@ -196,58 +251,70 @@ def evaluate(ast, environment):
         if name in ("__input", "__output"):
             destination = global_environment(environment)
         destination[name] = value
-        return None
+        return None, None
 
     if ast["tag"] == "unary-":
-        value = evaluate(ast["operand"], environment)
+        value, status = evaluate(ast["operand"], environment)
+        if status is not None:
+            return value, status
         if type(value) is bool:
             raise TypeError("Unary minus requires a number")
-        return -value
+        return -value, None
 
     if ast["tag"] in ("==", "!=", "&lt;", "&lt;=", "&gt;", "&gt;="):
         # Comparisons evaluate both operands, left to right. Unlike logical
         # operators they have no short-circuit case.
-        left = evaluate(ast["left"], environment)
-        right = evaluate(ast["right"], environment)
+        left, status = evaluate(ast["left"], environment)
+        if status is not None:
+            return left, status
+        right, status = evaluate(ast["right"], environment)
+        if status is not None:
+            return right, status
         numeric = type(left) in (int, float) and type(right) in (int, float)
         if ast["tag"] in ("==", "!="):
             # Integers and floats share numeric equality. Other types must match:
             # true is not 1, and the string "1" is not the number 1.
             equal = (numeric or type(left) is type(right)) and left == right
             if ast["tag"] == "==":
-                return equal
-            return not equal
+                return equal, None
+            return not equal, None
         if not numeric:
             # This chapter defines ordering for numbers only, not for strings
             # or booleans. Equality is available for all three value families.
             raise TypeError("Ordering comparisons require numbers")
         if ast["tag"] == "&lt;":
-            return left &lt; right
+            return left &lt; right, None
         if ast["tag"] == "&lt;=":
-            return left &lt;= right
+            return left &lt;= right, None
         if ast["tag"] == "&gt;":
-            return left &gt; right
-        return left &gt;= right
+            return left &gt; right, None
+        return left &gt;= right, None
 
     # Python's operators deliberately provide the Chapter 3 behavior:
     # string + string concatenates, string * integer repeats, and integer *
     # string repeats in the opposite order. Numeric behavior is unchanged.
     if ast["tag"] in ("+", "-", "*", "/"):
-        left = evaluate(ast["left"], environment)
-        right = evaluate(ast["right"], environment)
+        left, status = evaluate(ast["left"], environment)
+        if status is not None:
+            return left, status
+        right, status = evaluate(ast["right"], environment)
+        if status is not None:
+            return right, status
         # Python treats bool as an integer; Vertex keeps truth values distinct.
         if type(left) is bool or type(right) is bool:
             raise TypeError("Arithmetic does not accept boolean operands")
         if ast["tag"] == "+":
-            return left + right
+            return left + right, None
         if ast["tag"] == "-":
-            return left - right
+            return left - right, None
         if ast["tag"] == "*":
-            return left * right
-        return left / right
+            return left * right, None
+        return left / right, None
 
     if ast["tag"] == "print":
-        result = evaluate(ast["expression"], environment)
+        result, status = evaluate(ast["expression"], environment)
+        if status is not None:
+            return result, status
         # Use Vertex's lowercase boolean spellings instead of Python's True/False.
         # The terminal and __output must receive the same text.
         if type(result) is bool:
@@ -259,25 +326,29 @@ def evaluate(ast, environment):
             text = str(result)
         print(text)
         global_environment(environment)["__output"] = text
-        return None
+        return None, None
 
     if ast["tag"] == "statement_list":
         for statement in ast["statements"]:
-            evaluate(statement, environment)
-        return None
+            value, status = evaluate(statement, environment)
+            if status is not None:
+                return value, status
+        return None, None
 
     if ast["tag"] == "program":
         globals_ = global_environment(environment)
         globals_.setdefault("__input", "")
         globals_.setdefault("__output", "")
-        evaluate(ast["statements"], environment)
-        return None
+        value, status = evaluate(ast["statements"], environment)
+        if status is not None:
+            return value, status
+        return None, None
 
     raise ValueError(f"Unknown AST node: {ast}")
 
 
 def evaluate_source(source, environment=None):
-    """Small test helper; the runner performs these same three stages."""
+    """Return ((value, status), environment), retaining both result components."""
     if environment is None:
         environment = {}
     ast = parser.parse(tokenizer.tokenize(source))
@@ -289,11 +360,11 @@ def test_evaluate_numbers():
     print("test evaluate numbers")
     ast, rest = parser.parse_expression(tokenizer.tokenize("3*(4+5)"))
     assert rest[0]["tag"] is None
-    assert evaluate(ast, {}) == 27
+    assert evaluate(ast, {}) == (27, None)
 
     ast, rest = parser.parse_expression(tokenizer.tokenize("-1.5+2"))
     assert rest[0]["tag"] is None
-    assert evaluate(ast, {}) == 0.5
+    assert evaluate(ast, {}) == (0.5, None)
 
 
 def test_evaluate_strings():
@@ -308,13 +379,13 @@ def test_evaluate_strings():
     for source, expected in cases:
         ast, rest = parser.parse_expression(tokenizer.tokenize(source))
         assert rest[0]["tag"] is None
-        assert evaluate(ast, {}) == expected
+        assert evaluate(ast, {}) == (expected, None)
 
 
 def test_evaluate_environments():
     print("test evaluate environments")
     result, environment = evaluate_source('name="Ada";greeting="Hello, "+name')
-    assert result is None
+    assert result == (None, None)
     assert environment == {"name": "Ada", "greeting": "Hello, Ada", "__input": "", "__output": ""}
 
 
@@ -325,7 +396,7 @@ def test_evaluate_input():
     ast, rest = parser.parse_expression(tokenizer.tokenize("input()"))
     assert rest[0]["tag"] is None
     with patch("builtins.input", return_value="one line") as fake_input:
-        assert evaluate(ast, {}) == "one line"
+        assert evaluate(ast, {}) == ("one line", None)
         fake_input.assert_called_once_with()
 
     ast, rest = parser.parse_expression(
@@ -333,7 +404,7 @@ def test_evaluate_input():
     )
     assert rest[0]["tag"] is None
     with patch("builtins.input", return_value="Ada") as fake_input:
-        assert evaluate(ast, {}) == "Ada"
+        assert evaluate(ast, {}) == ("Ada", None)
         fake_input.assert_called_once_with("Your name? ")
 
     ast, rest = parser.parse_expression(tokenizer.tokenize("input(42)"))
@@ -354,7 +425,7 @@ def test_evaluate_print():
     output = io.StringIO()
     with redirect_stdout(output):
         result, environment = evaluate_source('x="ha"*3;print(x)')
-    assert result is None
+    assert result == (None, None)
     assert environment == {"x": "hahaha", "__input": "", "__output": "hahaha"}
     assert output.getvalue() == "hahaha\n"
 
@@ -375,7 +446,7 @@ def test_evaluate_chapter_3_program():
         with redirect_stdout(output):
             result, environment = evaluate_source(source)
 
-    assert result is None
+    assert result == (None, None)
     assert environment == {
         "name": "Ada",
         "greeting": "Hello, Ada!",
@@ -398,7 +469,7 @@ if __name__ == "__main__":
     test_evaluate_chapter_3_program()
     print("done.")
 </code></pre></section>
-<section class="source-file" id="file-6578616d706c652e76" aria-labelledby="title-file-6578616d706c652e76" hidden><header class="file-header"><h2 id="title-file-6578616d706c652e76">example.v</h2></header><pre><code>print("Chapter 5: Logical Operators");
+<section class="source-file" id="file-6578616d706c652e76" aria-labelledby="title-file-6578616d706c652e76" hidden><header class="file-header"><h2 id="title-file-6578616d706c652e76">example.v</h2></header><pre><code>print("Chapter 6: Returning Status");
 ready = true;
 print(ready);
 print(false);
@@ -437,6 +508,17 @@ print(type(answer));
 print(type("42"));
 print(type(answer == 42));
 print("Accepted: " + string(boolean(-2)));
+
+// Short-circuiting does not evaluate an exit on a skipped path.
+assert answer == 42, "Supplied input should produce 42";
+assert type(ready) == "boolean", "ready should hold a boolean";
+saved = false and exit(9);
+saved = true or exit(9);
+
+// Propagate exit through addition and assignment without doing either.
+// The runner receives (0, "exit"); no keyboard read or print follows it.
+stopped = exit() + number(input());
+print("This statement must not run");
 </code></pre></section>
 <section class="source-file" id="file-7061727365722e7079" aria-labelledby="title-file-7061727365722e7079" hidden><header class="file-header"><h2 id="title-file-7061727365722e7079">parser.py</h2></header><pre><code># parser.py
 
@@ -447,7 +529,9 @@ from tokenizer import tokenize
 #
 #   program ::= statement_list
 #   statement_list ::= { ";" } statement { ";" { ";" } statement } { ";" }
-#   statement ::= assignment_statement | print_statement
+#   statement ::= assignment_statement | print_statement | exit_expression
+#               | assert_statement
+#   assert_statement ::= "assert" expression "," &lt;string&gt;
 #   assignment_statement ::= &lt;identifier&gt; "=" expression
 #
 #   ===== CHAPTER 3: print now requires parentheses =====
@@ -466,7 +550,8 @@ from tokenizer import tokenize
 #   ===== CHAPTER 3: strings and input are expression forms =====
 #   factor ::= &lt;number&gt; | &lt;string&gt; | &lt;identifier&gt; | "true" | "false" | input_expression
 #          | number_expression | string_expression | boolean_expression
-#          | type_expression | "(" expression ")"
+#          | type_expression | exit_expression | "(" expression ")"
+#   exit_expression ::= "exit" "(" [ expression ] ")"
 #   input_expression ::= "input" "(" [ expression ] ")"
 #   number_expression ::= "number" "(" expression ")"
 #   string_expression ::= "string" "(" expression ")"
@@ -499,6 +584,8 @@ def parse_input_expression(tokens):
 
 def parse_factor(tokens):
     token = tokens[0]
+    if token["tag"] == "exit":
+        return parse_exit_expression(tokens)
     # Both keywords become the same kind of literal node, with different values.
     if token["tag"] in ("true", "false"):
         return {"tag": "boolean", "value": token["tag"] == "true"}, tokens[1:]
@@ -639,11 +726,40 @@ def parse_assignment_statement(tokens):
 
 
 def parse_statement(tokens):
+    if tokens[0]["tag"] == "assert":
+        return parse_assert_statement(tokens)
+    if tokens[0]["tag"] == "exit":
+        return parse_exit_expression(tokens)
     if tokens[0]["tag"] == "print":
         return parse_print_statement(tokens)
     if tokens[0]["tag"] == "identifier":
         return parse_assignment_statement(tokens)
     raise SyntaxError(f"Expected statement, got {tokens[0]}")
+
+
+def parse_assert_statement(tokens):
+    # The required explanation is a string literal, not another computation.
+    tokens = require(tokens, "assert", "Expected 'assert'")
+    expression, tokens = parse_expression(tokens)
+    tokens = require(tokens, ",", "Expected ',' and explanation string after assertion")
+    if tokens[0]["tag"] != "string":
+        raise SyntaxError("Expected explanation string after ','")
+    explanation = tokens[0]["value"]
+    tokens = tokens[1:]
+    return {"tag": "assert", "expression": expression,
+            "explanation": explanation}, tokens
+
+
+def parse_exit_expression(tokens):
+    # A dedicated expression, also allowed as a standalone statement.
+    # Nesting it in an operand makes status propagation observable.
+    tokens = require(tokens, "exit", "Expected 'exit'")
+    tokens = require(tokens, "(", "Expected '(' after 'exit'")
+    if tokens[0]["tag"] == ")":
+        return {"tag": "exit", "expression": None}, tokens[1:]
+    expression, tokens = parse_expression(tokens)
+    tokens = require(tokens, ")", "Expected ')' after exit argument")
+    return {"tag": "exit", "expression": expression}, tokens
 
 
 def parse_statement_list(tokens):
@@ -849,7 +965,7 @@ python3 evaluator.py
 python3 -m unittest discover -v
 
 actual_output="$(./vertex example.v &lt; /dev/null)"
-expected_output='Chapter 5: Logical Operators
+expected_output='Chapter 6: Returning Status
 true
 false
 true
@@ -882,7 +998,7 @@ if [[ "$actual_output" != "$expected_output" ]]; then
     exit 1
 fi
 
-echo "All Chapter 5 tests passed."
+echo "All Chapter 6 tests passed."
 </code></pre></section>
 <section class="source-file" id="file-72756e6e65722e7079" aria-labelledby="title-file-72756e6e65722e7079" hidden><header class="file-header"><h2 id="title-file-72756e6e65722e7079">runner.py</h2></header><pre><code>import sys
 
@@ -903,7 +1019,94 @@ if __name__ == "__main__":
 
     tokens = tokenize(program)
     ast = parse(tokens)
-    evaluate(ast, {})
+    value, status = evaluate(ast, {})
+    if status == "exit":
+        # Keep process termination outside the recursive evaluator.
+        sys.exit(value)
+    if status is not None:
+        raise ValueError(f"Unhandled evaluation status: {status}")
+</code></pre></section>
+<section class="source-file" id="file-746573745f617373657274696f6e732e7079" aria-labelledby="title-file-746573745f617373657274696f6e732e7079" hidden><header class="file-header"><h2 id="title-file-746573745f617373657274696f6e732e7079">test_assertions.py</h2></header><pre><code>import contextlib
+import io
+from pathlib import Path
+import subprocess
+import sys
+import unittest
+from unittest.mock import patch
+
+from evaluator import evaluate_source
+from parser import parse
+from tokenizer import tokenize
+
+
+class AssertionTests(unittest.TestCase):
+    def test_success_continues(self):
+        result, env = evaluate_source('assert 1&lt;2,"Expected increasing values";assert true,"ok";done=3')
+        self.assertEqual(result, (None, None))
+        self.assertEqual(env['done'], 3)
+
+    def test_failure_reports_once_and_prevents_later_effects(self):
+        for statement, message in [('assert 1==2,"wrong value"',
+                                    'Assertion failed: wrong value'),
+                                   ('assert false,""', 'Assertion failed: '),
+                                   ('assert false,"line\\nnext"',
+                                    'Assertion failed: line\nnext')]:
+            with self.subTest(statement=statement):
+                out, err = io.StringIO(), io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), \
+                        patch('builtins.input') as read:
+                    result, env = evaluate_source(
+                        'before=1;' + statement + ';print(input());after=2')
+                self.assertEqual(result, (1, 'exit'))
+                self.assertEqual(env['before'], 1)
+                self.assertNotIn('after', env)
+                self.assertEqual(env['__output'], '')
+                self.assertEqual(out.getvalue(), '')
+                self.assertEqual(err.getvalue(), message + '\n')
+                read.assert_not_called()
+
+    def test_condition_runs_once_and_propagates_exit(self):
+        with patch('builtins.input', return_value='yes') as read:
+            self.assertEqual(evaluate_source('assert input()=="yes","Expected yes"')[0], (None, None))
+        read.assert_called_once_with()
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(evaluate_source('assert exit(7),"unused"')[0], (7, 'exit'))
+        self.assertEqual(err.getvalue(), '')
+        self.assertEqual(evaluate_source('assert true or exit(7),"Expected true"')[0], (None, None))
+
+    def test_requires_boolean(self):
+        for expression in ('0', '1', '"true"'):
+            with self.subTest(expression=expression), self.assertRaises(TypeError):
+                evaluate_source('assert ' + expression + ',"Requires boolean"')
+
+    def test_syntax_and_keyword_boundaries(self):
+        self.assertEqual([t['tag'] for t in tokenize('assert assertion assert_value')],
+                         ['assert', 'identifier', 'identifier', None])
+        for source in ('assert', 'assert true', 'assert false;',
+                       'assert true;done=1', 'assert true,', 'assert true,42',
+                       'assert true,message', 'assert true,"a","b"',
+                       'assert=true', 'x=assert true', 'print(assert true)',
+                       'assert true,"a"+"b"', 'assert false,"failure";x=1+'):
+            with self.subTest(source=source), self.assertRaises(SyntaxError):
+                parse(tokenize(source))
+
+    def test_runner_handles_assertion_exit_without_duplicate_diagnostic(self):
+        runner = Path(__file__).with_name('runner.py')
+        for source, code, message in [('assert true,"Expected true"', 0, ''),
+                                      ('assert false,"stopped";print(9)', 1, 'Assertion failed: stopped\n'),
+                                      ('assert false,"bad value"', 1,
+                                       'Assertion failed: bad value\n')]:
+            result = subprocess.run([sys.executable, str(runner), source],
+                                    capture_output=True, text=True,
+                                    stdin=subprocess.DEVNULL)
+            self.assertEqual(result.returncode, code)
+            self.assertEqual(result.stdout, '')
+            self.assertEqual(result.stderr, message)
+
+
+if __name__ == '__main__':
+    unittest.main()
 </code></pre></section>
 <section class="source-file" id="file-746573745f61737369676e6d656e745f746172676574732e7079" aria-labelledby="title-file-746573745f61737369676e6d656e745f746172676574732e7079" hidden><header class="file-header"><h2 id="title-file-746573745f61737369676e6d656e745f746172676574732e7079">test_assignment_targets.py</h2></header><pre><code>"""Assignment destinations and print effects in the released interpreter."""
 
@@ -921,13 +1124,13 @@ class AssignmentTests(unittest.TestCase):
         tree, _ = parse_assignment_statement(tokenize("x = 2"))
         self.assertEqual(tree["target"], {"tag": "identifier", "value": "x"})
         environment = {}
-        self.assertIsNone(evaluate(tree, environment))
+        self.assertEqual(evaluate(tree, environment), (None, None))
         self.assertEqual(environment["x"], 2)
 
     def test_reassignment_reads_old_value_only_on_right(self):
         tree, _ = parse_assignment_statement(tokenize("x = x + 3"))
         environment = {"x": 2}
-        self.assertIsNone(evaluate(tree, environment))
+        self.assertEqual(evaluate(tree, environment), (None, None))
         self.assertEqual(environment["x"], 5)
 
     def test_non_identifier_targets_are_rejected(self):
@@ -949,7 +1152,7 @@ class AssignmentTests(unittest.TestCase):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             result = evaluate(tree, {})
-        self.assertIsNone(result)
+        self.assertEqual(result, (None, None))
         self.assertEqual(output.getvalue(), "3\n")
 
 
@@ -1063,7 +1266,7 @@ class Chapter2CompatibilityTests(unittest.TestCase):
             with self.subTest(source=source):
                 output = io.StringIO()
                 with redirect_stdout(output):
-                    self.assertIsNone(evaluate(parse(tokenize(source)), {}))
+                    self.assertEqual(evaluate(parse(tokenize(source)), {}), (None, None))
                 self.assertEqual(output.getvalue(), expected)
 
     def test_comment_tokens_and_positions(self):
@@ -1174,6 +1377,139 @@ class ConversionAndTypeTests(unittest.TestCase):
         for source in ('true+2', '1 and true'):
             with self.subTest(source=source), self.assertRaises(TypeError):
                 self.value(source)
+
+
+if __name__ == '__main__':
+    unittest.main()
+</code></pre></section>
+<section class="source-file" id="file-746573745f6576616c756174696f6e5f7374617475732e7079" aria-labelledby="title-file-746573745f6576616c756174696f6e5f7374617475732e7079" hidden><header class="file-header"><h2 id="title-file-746573745f6576616c756174696f6e5f7374617475732e7079">test_evaluation_status.py</h2></header><pre><code>import contextlib
+import io
+from pathlib import Path
+import subprocess
+import sys
+import unittest
+from unittest.mock import patch
+
+import evaluator
+from parser import parse, parse_expression
+from tokenizer import tokenize
+
+
+class EvaluationStatusTests(unittest.TestCase):
+    def expression(self, source, environment=None):
+        node, rest = parse_expression(tokenize(source))
+        self.assertIsNone(rest[0]["tag"])
+        if environment is None:
+            environment = {}
+        return evaluator.evaluate(node, environment)
+
+    def test_normal_values_and_statuses(self):
+        for source, value in [('42', 42), ('true', True), ('"hello"', 'hello'),
+                              ('number("2")+3', 5), ('type(false)', 'boolean'),
+                              ('false or true', True), ('1&lt;2', True)]:
+            with self.subTest(source=source):
+                self.assertEqual(self.expression(source), (value, None))
+        self.assertEqual(evaluator.evaluate_source('x=2')[0], (None, None))
+
+    def test_exit_defaults_and_nested_exit(self):
+        self.assertEqual(self.expression('exit()'), (0, 'exit'))
+        self.assertEqual(self.expression('exit(7)'), (7, 'exit'))
+        self.assertEqual(self.expression('exit(exit(9))'), (9, 'exit'))
+        for source in ('exit(true)', 'exit(2.5)', 'exit("7")'):
+            with self.subTest(source=source), self.assertRaises(TypeError):
+                self.expression(source)
+
+    def test_unary_and_conversion_propagation(self):
+        for source in ('-exit(7)', 'not exit(7)', 'number(exit(7))',
+                       'string(exit(7))', 'boolean(exit(7))', 'type(exit(7))'):
+            with self.subTest(source=source):
+                self.assertEqual(self.expression(source), (7, 'exit'))
+
+    def test_binary_propagation_before_later_work(self):
+        for operator in ('+', '-', '*', '/', '==', '!=', '&lt;', '&lt;=', '&gt;', '&gt;=',
+                         'and', 'or'):
+            with self.subTest(operator=operator), patch('builtins.input') as read:
+                self.assertEqual(self.expression(f'exit(7) {operator} input()'),
+                                 (7, 'exit'))
+                read.assert_not_called()
+        # Needed right operands propagate before applying the operation or
+        # checking the exit value against the operation's operand types.
+        for source in ('1+exit(7)', '1-exit(7)', '1*exit(7)', '1/exit(7)',
+                       '1==exit(7)', '1!=exit(7)', '1&lt;exit(7)', '1&lt;=exit(7)',
+                       '1&gt;exit(7)', '1&gt;=exit(7)', 'true and exit(7)',
+                       'false or exit(7)'):
+            with self.subTest(source=source):
+                self.assertEqual(self.expression(source), (7, 'exit'))
+
+    def test_short_circuit_still_skips_exit(self):
+        self.assertEqual(self.expression('false &amp;&amp; exit(7)'), (False, None))
+        self.assertEqual(self.expression('true || exit(7)'), (True, None))
+
+    def test_input_prompt_exits_before_reading(self):
+        env = {'__input': 'saved'}
+        with patch('builtins.input') as read:
+            self.assertEqual(self.expression('input(exit(7))', env), (7, 'exit'))
+        read.assert_not_called()
+        self.assertEqual(env['__input'], 'saved')
+
+    def test_assignment_print_and_statement_list_stop(self):
+        env = {'x': 3, '__output': 'previous', '__input': 'saved'}
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), patch('builtins.input') as read:
+            result, _ = evaluator.evaluate_source(
+                'x=exit(7);print(input());later=2', env)
+        self.assertEqual(result, (7, 'exit'))
+        self.assertEqual(env, {'x': 3, '__output': 'previous', '__input': 'saved'})
+        self.assertEqual(output.getvalue(), '')
+        read.assert_not_called()
+        with contextlib.redirect_stdout(output):
+            result, _ = evaluator.evaluate_source('print(exit(8));later=2', env)
+        self.assertEqual(result, (8, 'exit'))
+        self.assertEqual(output.getvalue(), '')
+        self.assertEqual(env['__output'], 'previous')
+        self.assertNotIn('later', env)
+
+    def test_propagation_does_not_undo_earlier_effects(self):
+        env = {'__input': 'first'}
+        self.assertEqual(self.expression('input()+exit(7)', env), (7, 'exit'))
+        self.assertEqual(env['__input'], '')
+
+    def test_generic_status_is_not_limited_to_exit(self):
+        # A synthetic child stands in for future break/continue/return nodes.
+        # Ordinary parents must carry unfamiliar statuses without consuming them.
+        original = evaluator.evaluate
+        for status in ('break', 'continue', 'return'):
+            for source in ('x=marker+missing', 'x=type(marker)', 'print(marker)'):
+                def child(node, env):
+                    if node.get('tag') == 'identifier' and node.get('value') == 'marker':
+                        return 17, status
+                    return original(node, env)
+                with self.subTest(status=status, source=source):
+                    env = {}
+                    with patch.object(evaluator, 'evaluate', side_effect=child):
+                        self.assertEqual(original(parse(tokenize(source)), env),
+                                         (17, status))
+                    self.assertNotIn('x', env)
+                    self.assertEqual(env['__output'], '')
+
+    def test_exit_keyword_and_syntax(self):
+        self.assertEqual([t['tag'] for t in tokenize('exit exiting exit_code')],
+                         ['exit', 'identifier', 'identifier', None])
+        for source in ('exit=1', 'exit', 'exit(1,2)', 'exit(', 'exit(1);x=1+'):
+            with self.subTest(source=source), self.assertRaises(SyntaxError):
+                parse(tokenize(source))
+
+    def test_runner_handles_exit(self):
+        runner = Path(__file__).with_name('runner.py')
+        for source, code, output in [('print(1);exit(7);print(2)', 7, '1\n'),
+                                      ('exit();print(2)', 0, ''),
+                                      ('print(3)', 0, '3\n')]:
+            result = subprocess.run([sys.executable, str(runner), source],
+                                    capture_output=True, text=True,
+                                    stdin=subprocess.DEVNULL)
+            self.assertEqual(result.returncode, code)
+            self.assertEqual(result.stdout, output)
+            self.assertEqual(result.stderr, '')
 
 
 if __name__ == '__main__':
@@ -1409,7 +1745,10 @@ patterns = [
     (r"\)", ")"),
     (r"\=", "="),
     (r"\;", ";"),
+    (r",", ","),
+    (r"assert\b", "assert"),
     (r"print\b", "print"),
+    (r"exit\b", "exit"),
     (r"true\b", "true"),
     (r"false\b", "false"),
 
@@ -1658,7 +1997,7 @@ if __name__ == "__main__":
 exec python3 "$(dirname "$0")/runner.py" "$@"
 </code></pre></section></div>
 </div>
-<p>The files are available in the <a href="https://github.com/kentcs/structures/tree/main/chapter-05-logical-operators/code">course repository</a>.</p>
+<p>The files are available in the <a href="https://github.com/kentcs/structures/tree/main/chapter-06-returning-status/code">course repository</a>.</p>
 </main>
 <script>
 const links = [...document.querySelectorAll('nav a')];

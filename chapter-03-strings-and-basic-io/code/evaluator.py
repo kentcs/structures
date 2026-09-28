@@ -36,7 +36,9 @@ def evaluate(ast, environment):
     # ===== CHAPTER 3: dedicated input expression =====
     if ast["tag"] == "input":
         prompt_ast = ast["prompt"]
-        prompt = evaluate(prompt_ast, environment) if prompt_ast is not None else None
+        prompt = None
+        if prompt_ast is not None:
+            prompt = evaluate(prompt_ast, environment)
         if prompt_ast is not None and not isinstance(prompt, str):
             raise TypeError("input prompt must be a string")
         supplied = global_environment(environment).get("__input", "")
@@ -62,7 +64,9 @@ def evaluate(ast, environment):
         text = value.strip()
         if not re.fullmatch(r"[+-]?(?:\d*\.\d+|\d+\.\d*|\d+)", text):
             raise ValueError(f"Invalid number: {value!r}")
-        return float(text) if "." in text else int(text)
+        if "." in text:
+            return float(text)
+        return int(text)
 
     if ast["tag"] == "assign":
         value = evaluate(ast["expression"], environment)
@@ -70,7 +74,9 @@ def evaluate(ast, environment):
         if target["tag"] != "identifier":
             raise ValueError("Assignment requires an identifier destination")
         name = target["value"]
-        destination = global_environment(environment) if name in ("__input", "__output") else environment
+        destination = environment
+        if name in ("__input", "__output"):
+            destination = global_environment(environment)
         destination[name] = value
         return None
 

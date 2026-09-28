@@ -20,7 +20,7 @@ class Chapter2CompatibilityTests(unittest.TestCase):
             with self.subTest(source=source):
                 output = io.StringIO()
                 with redirect_stdout(output):
-                    self.assertIsNone(evaluate(parse(tokenize(source)), {}))
+                    self.assertEqual(evaluate(parse(tokenize(source)), {}), (None, None))
                 self.assertEqual(output.getvalue(), expected)
 
     def test_comment_tokens_and_positions(self):

@@ -13,7 +13,13 @@ patterns = [
 
     (r"\d*\.\d+|\d+\.\d*|\d+", "number"),
     (r"==", "=="),
+    # Inequality must win over the single-character spelling of "not".
     (r"!=", "!="),
+    # Normalize both spellings here, so the parser only needs word-form tags.
+    # Word boundaries keep names such as "android" and "notable" intact.
+    (r"and\b|&&", "and"),
+    (r"or\b|\|\|", "or"),
+    (r"not\b|!", "not"),
     (r"<=", "<="),
     (r">=", ">="),
     (r"<", "<"),
@@ -26,7 +32,10 @@ patterns = [
     (r"\)", ")"),
     (r"\=", "="),
     (r"\;", ";"),
+    (r",", ","),
+    (r"assert\b", "assert"),
     (r"print\b", "print"),
+    (r"exit\b", "exit"),
     (r"true\b", "true"),
     (r"false\b", "false"),
 
