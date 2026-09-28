@@ -65,7 +65,10 @@ def parse_factor(tokens):
         return parse_input_expression(tokens)
 
     if token["tag"] in ("number_conversion", "string_conversion"):
-        name = "number" if token["tag"] == "number_conversion" else "string"
+        if token["tag"] == "number_conversion":
+            name = "number"
+        else:
+            name = "string"
         tokens = require(tokens[1:], "(", f"Expected '(' after '{name}'")
         expression, tokens = parse_expression(tokens)
         tokens = require(tokens, ")", f"Expected ')' after {name} argument")

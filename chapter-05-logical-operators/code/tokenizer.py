@@ -101,7 +101,10 @@ def tokenize(characters):
         if current_tag not in ("whitespace", "comment"):
             token = {"tag": current_tag, "line": line, "column": column}
             if current_tag == "number":
-                token["value"] = float(value) if "." in value else int(value)
+                if "." in value:
+                    token["value"] = float(value)
+                else:
+                    token["value"] = int(value)
             elif current_tag == "string":
                 token["value"] = decode_string(value, line, column)
             elif current_tag == "identifier":

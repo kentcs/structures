@@ -81,7 +81,9 @@ def evaluate(ast, environment):
     # ===== CHAPTER 3: dedicated input expression =====
     if ast["tag"] == "input":
         prompt_ast = ast["prompt"]
-        prompt = evaluate(prompt_ast, environment) if prompt_ast is not None else None
+        prompt = None
+        if prompt_ast is not None:
+            prompt = evaluate(prompt_ast, environment)
         if prompt_ast is not None and not isinstance(prompt, str):
             raise TypeError("input prompt must be a string")
         supplied = global_environment(environment).get("__input", "")
@@ -107,7 +109,9 @@ def evaluate(ast, environment):
         text = value.strip()
         if not re.fullmatch(r"[+-]?(?:\d*\.\d+|\d+\.\d*|\d+)", text):
             raise ValueError(f"Invalid number: {value!r}")
-        return float(text) if "." in text else int(text)
+        if "." in text:
+            return float(text)
+        return int(text)
 
     if ast["tag"] == "assign":
         value = evaluate(ast["expression"], environment)
@@ -115,7 +119,9 @@ def evaluate(ast, environment):
         if target["tag"] != "identifier":
             raise ValueError("Assignment requires an identifier destination")
         name = target["value"]
-        destination = global_environment(environment) if name in ("__input", "__output") else environment
+        destination = environment
+        if name in ("__input", "__output"):
+            destination = global_environment(environment)
         destination[name] = value
         return None
 
@@ -365,7 +371,10 @@ def parse_factor(tokens):
         return parse_input_expression(tokens)
 
     if token["tag"] in ("number_conversion", "string_conversion"):
-        name = "number" if token["tag"] == "number_conversion" else "string"
+        if token["tag"] == "number_conversion":
+            name = "number"
+        else:
+            name = "string"
         tokens = require(tokens[1:], "(", f"Expected '(' after '{name}'")
         expression, tokens = parse_expression(tokens)
         tokens = require(tokens, ")", f"Expected ')' after {name} argument")
@@ -763,8 +772,11 @@ class Chapter2CompatibilityTests(unittest.TestCase):
             self.assertEqual([t["tag"] for t in tokens], ["number", "/", "number", None])
         for source in ("//", "// at end", "8 // trailing"):
             tokens = tokenize(source)
-            self.assertEqual([t["tag"] for t in tokens],
-                             ["number", None] if source.startswith("8") else [None])
+            if source.startswith("8"):
+                expected_tags = ["number", None]
+            else:
+                expected_tags = [None]
+            self.assertEqual([t["tag"] for t in tokens], expected_tags)
             self.assertEqual(tokens[-1]["column"], len(source) + 1)
         tokens = tokenize("// first\n  8// second\r\n /2")
         self.assertEqual((tokens[0]["line"], tokens[0]["column"]), (2, 3))
@@ -982,7 +994,10 @@ def tokenize(characters):
         if current_tag not in ("whitespace", "comment"):
             token = {"tag": current_tag, "line": line, "column": column}
             if current_tag == "number":
-                token["value"] = float(value) if "." in value else int(value)
+                if "." in value:
+                    token["value"] = float(value)
+                else:
+                    token["value"] = int(value)
             elif current_tag == "string":
                 token["value"] = decode_string(value, line, column)
             elif current_tag == "identifier":

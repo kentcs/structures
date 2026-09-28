@@ -41,7 +41,9 @@ def evaluate(ast, environment):
     # ===== CHAPTER 3: dedicated input expression =====
     if ast["tag"] == "input":
         prompt_ast = ast["prompt"]
-        prompt = evaluate(prompt_ast, environment) if prompt_ast is not None else None
+        prompt = None
+        if prompt_ast is not None:
+            prompt = evaluate(prompt_ast, environment)
         if prompt_ast is not None and not isinstance(prompt, str):
             raise TypeError("input prompt must be a string")
         supplied = global_environment(environment).get("__input", "")
@@ -70,7 +72,9 @@ def evaluate(ast, environment):
     if ast["tag"] == "string_conversion":
         value = evaluate(ast["expression"], environment)
         if type(value) is bool:
-            return "true" if value else "false"
+            if value:
+                return "true"
+            return "false"
         if type(value) in (int, float, str):
             return str(value)
         raise TypeError("string argument must be a number, string, or boolean")
@@ -80,7 +84,9 @@ def evaluate(ast, environment):
         # Explicit conversion permits booleans as 1/0 without making them
         # implicit arithmetic operands. Existing numbers retain their type.
         if type(value) is bool:
-            return 1 if value else 0
+            if value:
+                return 1
+            return 0
         if type(value) in (int, float):
             return value
         if type(value) is not str:
@@ -88,7 +94,9 @@ def evaluate(ast, environment):
         text = value.strip()
         if not re.fullmatch(r"[+-]?(?:\d*\.\d+|\d+\.\d*|\d+)", text):
             raise ValueError(f"Invalid number: {value!r}")
-        return float(text) if "." in text else int(text)
+        if "." in text:
+            return float(text)
+        return int(text)
 
     if ast["tag"] == "boolean_conversion":
         value = evaluate(ast["expression"], environment)
@@ -110,7 +118,9 @@ def evaluate(ast, environment):
         if target["tag"] != "identifier":
             raise ValueError("Assignment requires an identifier destination")
         name = target["value"]
-        destination = global_environment(environment) if name in ("__input", "__output") else environment
+        destination = environment
+        if name in ("__input", "__output"):
+            destination = global_environment(environment)
         destination[name] = value
         return None
 
@@ -129,7 +139,9 @@ def evaluate(ast, environment):
             # Integers and floats share numeric equality. Other types must match:
             # true is not 1, and the string "1" is not the number 1.
             equal = (numeric or type(left) is type(right)) and left == right
-            return equal if ast["tag"] == "==" else not equal
+            if ast["tag"] == "==":
+                return equal
+            return not equal
         if not numeric:
             # This chapter defines ordering for numbers only, not for strings
             # or booleans. Equality is available for all three value families.
@@ -163,7 +175,13 @@ def evaluate(ast, environment):
         result = evaluate(ast["expression"], environment)
         # Use Vertex's lowercase boolean spellings instead of Python's True/False.
         # The terminal and __output must receive the same text.
-        text = ("true" if result else "false") if type(result) is bool else str(result)
+        if type(result) is bool:
+            if result:
+                text = "true"
+            else:
+                text = "false"
+        else:
+            text = str(result)
         print(text)
         global_environment(environment)["__output"] = text
         return None
