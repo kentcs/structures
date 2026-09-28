@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 6: Returning Status</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="returning-status">Returning Status</h1>
+<p>Values and control flow</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="breaking-changes">Breaking Changes</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>value, status <span class="op">=</span> evaluate(ast, environment)</span></code></pre></div>
+<p><strong>Every evaluator result is now a pair.</strong></p>
+<p><code>exit</code> and <code>assert</code> become keywords.</p>
+</section>
+<section><h2 id="value-is-not-status">Value Is Not Status</h2>
+<table>
+<thead>
+<tr>
+<th>Evaluation</th>
+<th>Value</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>2 + 3</code></td>
+<td><code>5</code></td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td><code>2 &gt; 3</code></td>
+<td><code>False</code></td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td><code>print(5)</code></td>
+<td><code>None</code></td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td><code>exit(7)</code></td>
+<td><code>7</code></td>
+<td><code>"exit"</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>False is a normal result.</strong></p>
+</section>
+<section><h2 id="the-caller-rule">The Caller Rule</h2>
+<p><img src="slide-assets/diagram-04.svg" alt="The Caller Rule" /></p>
+<p><strong>Check status before using the value.</strong></p>
+</section>
+<section><h2 id="two-operands-two-checks">Two Operands, Two Checks</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>left, status <span class="op">=</span> evaluate(ast[<span class="st">&quot;left&quot;</span>], environment)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> left, status</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>right, status <span class="op">=</span> evaluate(ast[<span class="st">&quot;right&quot;</span>], environment)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> right, status</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> left <span class="op">+</span> right, <span class="va">None</span></span></code></pre></div>
+</section>
+<section><h2 id="requesting-exit">Requesting Exit</h2>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Returned pair</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>exit()</code></td>
+<td><code>(0, "exit")</code></td>
+</tr>
+<tr>
+<td><code>exit(2 + 3)</code></td>
+<td><code>(5, "exit")</code></td>
+</tr>
+<tr>
+<td><code>exit(exit(7))</code></td>
+<td><code>(7, "exit")</code></td>
+</tr>
+</tbody>
+</table>
+<p>Parentheses required. Integer argument optional.</p>
+</section>
+<section><h2 id="where-does-execution-stop">Where Does Execution Stop?</h2>
+<pre class="vertex"><code>x = 3;
+x = exit(7) + number(input());
+print(x);</code></pre>
+<p><strong>No input. No addition. No assignment. No print.</strong></p>
+</section>
+<section><h2 id="exit-returns-outward">Exit Returns Outward</h2>
+<p><img src="slide-assets/diagram-08.svg"
+alt="Exit Returns Outward" /></p>
+<p>Every arrow carries <strong><code>(7, "exit")</code></strong>.</p>
+</section>
+<section><h2 id="assertions-state-expectations">Assertions State
+Expectations</h2>
+<pre class="vertex"><code>answer = 41;
+assert answer == 42, &quot;Expected 42&quot;;
+print(&quot;This must not run&quot;);</code></pre>
+<pre class="text"><code>Assertion failed: Expected 42</code></pre>
+<p><strong>Report here. Return <code>(1, "exit")</code>.</strong></p>
+</section>
+<section><h2 id="assertion-workflow">Assertion Workflow</h2>
+<p><img src="slide-assets/diagram-10.svg"
+alt="Assertion Workflow" /></p>
+</section>
+<section><h2 id="the-runner-handles-exit">The Runner Handles Exit</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>value, status <span class="op">=</span> evaluate(ast, {})</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="op">==</span> <span class="st">&quot;exit&quot;</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    sys.exit(value)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&quot;Unhandled status: </span><span class="sc">{</span>status<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<p><strong>Evaluation is testable without terminating the test
+process.</strong></p>
+</section>
+<section><h2 id="skipped-nodes-produce-no-status">Skipped Nodes Produce No
+Status</h2>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>false and exit(9)</code></td>
+<td><code>(False, None)</code></td>
+</tr>
+<tr>
+<td><code>true or exit(9)</code></td>
+<td><code>(True, None)</code></td>
+</tr>
+<tr>
+<td><code>true and exit(9)</code></td>
+<td><code>(9, "exit")</code></td>
+</tr>
+<tr>
+<td><code>type(exit(9))</code></td>
+<td><code>(9, "exit")</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="stopping-is-not-undoing">Stopping Is Not Undoing</h2>
+<pre class="text"><code>input() + exit(7)     input is consumed
+exit(7) + input()     input is skipped</code></pre>
+<p>Both return <strong><code>(7, "exit")</code></strong>.</p>
+</section>
+<section><h2 id="test-the-pair-and-the-effects">Test the Pair and the
+Effects</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>result, env <span class="op">=</span> evaluate_source(<span class="st">&quot;x=3;x=exit(7);x=99&quot;</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> result <span class="op">==</span> (<span class="dv">7</span>, <span class="st">&quot;exit&quot;</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> env[<span class="st">&quot;x&quot;</span>] <span class="op">==</span> <span class="dv">3</span></span></code></pre></div>
+<p>Exit exactly once. Later work never runs.</p>
+</section>
+<section><h2 id="questions-for-thought">Questions for Thought</h2>
+<p>Why check status before storing an assignment?</p>
+<p>Which structure should handle <code>break</code>?</p>
+<p>What would recovery from assertion failure require?</p>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>
