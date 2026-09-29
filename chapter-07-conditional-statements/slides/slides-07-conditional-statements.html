@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 7: Conditional Statements</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="conditional-statements">Conditional Statements</h1>
+<p>Choosing which branch runs</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="breaking-changes">Breaking Changes</h2>
+<p><code>if</code> and <code>else</code> become keywords.</p>
+<p><code>{</code> and <code>}</code> are now reserved for blocks.</p>
+</section>
+<section><h2 id="only-one-branch-runs">Only One Branch Runs</h2>
+<pre class="vertex"><code>if (temperature &gt; 90) {
+    print(&quot;Too hot&quot;);
+} else {
+    print(&quot;Fine&quot;);
+}</code></pre>
+<p><strong>The condition must be a boolean.</strong></p>
+</section>
+<section><h2 id="if-no-else">If, No Else</h2>
+<p><img src="slide-assets/diagram-04.svg" alt="If, No Else" /></p>
+</section>
+<section><h2 id="if-with-else">If, With Else</h2>
+<p><img src="slide-assets/diagram-05.svg" alt="If, With Else" /></p>
+<p><strong>Exactly one branch runs, either way.</strong></p>
+</section>
+<section><h2 id="the-unselected-branch-is-never-evaluated">The Unselected Branch
+Is Never Evaluated</h2>
+<pre class="vertex"><code>if (false) {
+    stuck = exit(9) + number(input());
+} else {
+    print(&quot;only this branch runs&quot;);
+}</code></pre>
+<p><strong>Not skipped output. Skipped evaluation.</strong></p>
+</section>
+<section><h2 id="every-branch-is-a-block">Every Branch Is a Block</h2>
+<pre class="text"><code>if_statement ::= &quot;if&quot; &quot;(&quot; expression &quot;)&quot; block [ &quot;else&quot; block ]
+block ::= &quot;{&quot; statement_list &quot;}&quot;</code></pre>
+<p><strong>A bare statement is never a valid branch.</strong></p>
+</section>
+<section><h2 id="why-require-braces-everywhere">Why Require Braces
+Everywhere</h2>
+<pre class="text"><code>if (a) if (b) x=1; else y=2;</code></pre>
+<p>Which <code>if</code> does the <code>else</code> belong to?</p>
+</section>
+<section><h2 id="no-else-if-shortcut">No “else if” Shortcut</h2>
+<pre class="vertex"><code>if (grade &gt;= 90) {
+    letter = &quot;A&quot;;
+} else {
+    if (grade &gt;= 80) {
+        letter = &quot;B&quot;;
+    } else {
+        letter = &quot;C or lower&quot;;
+    };
+};</code></pre>
+</section>
+<section><h2 id="parsing-a-block">Parsing a Block</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> parse_block(tokens):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    tokens <span class="op">=</span> require(tokens, <span class="st">&quot;{&quot;</span>, <span class="st">&quot;Expected &#39;{&#39; to start a block&quot;</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    statements, tokens <span class="op">=</span> parse_statement_list(tokens)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    tokens <span class="op">=</span> require(tokens, <span class="st">&quot;}&quot;</span>, <span class="st">&quot;Expected &#39;}&#39; to close a block&quot;</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> statements, tokens</span></code></pre></div>
+</section>
+<section><h2 id="a-second-caller-for-statement_list">A Second Caller for
+statement_list</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="kw">in</span> (<span class="va">None</span>, <span class="st">&quot;}&quot;</span>):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">break</span></span></code></pre></div>
+<p><strong>A trailing semicolon before <code>}</code> is now allowed
+too.</strong></p>
+</section>
+<section><h2 id="semicolons-around-a-conditional">Semicolons Around a
+Conditional</h2>
+<pre class="vertex"><code>if (true) { x=1 };
+y=2;</code></pre>
+<p><strong>A semicolon after <code>}</code>, none before
+<code>else</code>.</strong></p>
+</section>
+<section><h2 id="parsing-an-if-statement">Parsing an If Statement</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> parse_if_statement(tokens):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    tokens <span class="op">=</span> require(tokens, <span class="st">&quot;if&quot;</span>, <span class="st">&quot;Expected &#39;if&#39;&quot;</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    tokens <span class="op">=</span> require(tokens, <span class="st">&quot;(&quot;</span>, <span class="st">&quot;Expected &#39;(&#39; after &#39;if&#39;&quot;</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    condition, tokens <span class="op">=</span> parse_expression(tokens)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    tokens <span class="op">=</span> require(tokens, <span class="st">&quot;)&quot;</span>, <span class="st">&quot;Expected &#39;)&#39; after if condition&quot;</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    then_block, tokens <span class="op">=</span> parse_block(tokens)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    else_block <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;else&quot;</span>:</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        else_block, tokens <span class="op">=</span> parse_block(tokens[<span class="dv">1</span>:])</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;if&quot;</span>, <span class="st">&quot;condition&quot;</span>: condition, <span class="st">&quot;then&quot;</span>: then_block,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;else&quot;</span>: else_block}, tokens</span></code></pre></div>
+</section>
+<section><h2 id="evaluating-a-conditional">Evaluating a Conditional</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> ast[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;if&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    condition, status <span class="op">=</span> evaluate(ast[<span class="st">&quot;condition&quot;</span>], environment)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> condition, status</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">type</span>(condition) <span class="kw">is</span> <span class="kw">not</span> <span class="bu">bool</span>:</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;if condition must be a boolean expression&quot;</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> condition:</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> evaluate(ast[<span class="st">&quot;then&quot;</span>], environment)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> ast[<span class="st">&quot;else&quot;</span>] <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> evaluate(ast[<span class="st">&quot;else&quot;</span>], environment)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">None</span>, <span class="va">None</span></span></code></pre></div>
+</section>
+<section><h2 id="the-full-decision">The Full Decision</h2>
+<p><img src="slide-assets/diagram-15.svg" alt="The Full Decision" /></p>
+</section>
+<section><h2 id="status-still-escapes-nested-blocks">Status Still Escapes Nested
+Blocks</h2>
+<pre class="vertex"><code>x = 1;
+if (true) {
+    if (true) {
+        exit(7);
+    };
+};
+x = 2;</code></pre>
+<p><strong>Result: <code>(7, "exit")</code>. <code>x</code> stays
+<code>1</code>.</strong></p>
+</section>
+<section><h2 id="testing-the-contract">Testing the Contract</h2>
+<p>Single- and two-branch conditionals, nested conditionals,
+multi-statement blocks.</p>
+<p>Unselected branch never touches input, exit, or assert.</p>
+<p>Status escapes nested blocks and stops later statements.</p>
+<p>Parser rejects unbraced bodies; accepts braced single-statement and
+nested blocks.</p>
+</section>
+<section><h2 id="questions-for-thought">Questions for Thought</h2>
+<p>Why must the unselected branch be skipped entirely, not evaluated and
+discarded?</p>
+<p>What would break if <code>if</code> consumed a status from its own
+selected branch?</p>
+<p>What would adding an “else if” shortcut change about how
+<code>else</code> attaches?</p>
+<p>If blocks later introduced their own scope, what would have to change
+here?</p>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>
