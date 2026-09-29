@@ -35,6 +35,30 @@ class ConditionalTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             self.run_source('if (1) { x=1 }')
 
+    def test_empty_block_is_legal(self):
+        # A block's statement_list is optional: "{}" is empty, not an error.
+        result, env = self.run_source('x=1; if (true) { }; x=2')
+        self.assertEqual(result, (None, None))
+        self.assertEqual(env['x'], 2)
+
+        result, env = self.run_source('if (false) { } else { x=1 }')
+        self.assertEqual(env['x'], 1)
+
+        result, env = self.run_source('if (true) { } else { x=1 }')
+        self.assertNotIn('x', env)
+
+    def test_semicolon_only_blocks(self):
+        for body in (';', ';;;', '; // comment\n ;'):
+            with self.subTest(body=body):
+                result, env = self.run_source(
+                    f'x=1; if (true) {{ {body} }}; '
+                    f'if (false) {{ x=99 }} else {{ {body} }}; x=2')
+                self.assertEqual(result, (None, None))
+                self.assertEqual(env['x'], 2)
+        result, env = self.run_source('if (true) { ;;; x=1;;; y=2;;; }')
+        self.assertEqual(result, (None, None))
+        self.assertEqual((env['x'], env['y']), (1, 2))
+
     def test_exit_in_condition_skips_both_branches(self):
         # An exit found while evaluating the condition propagates immediately:
         # it is never checked against the boolean requirement, and neither
@@ -126,6 +150,8 @@ class ConditionalTests(unittest.TestCase):
         parse(tokenize('if (true) { x=1 }'))
         parse(tokenize('if (true) { x=1 } else { x=2 }'))
         parse(tokenize('if (true) { if (false) { x=1 } else { x=2 } }'))
+        parse(tokenize('if (true) { }'))
+        parse(tokenize('if (true) { } else { }'))
 
     def test_runner_handles_if(self):
         runner = Path(__file__).with_name('runner.py')

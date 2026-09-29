@@ -440,6 +440,10 @@ def test_evaluate_if():
     result, environment = evaluate_source('if (false) { x=1 } else { x=2 }')
     assert environment["x"] == 2
 
+    result, environment = evaluate_source('x=1; if (true) { }; x=2')
+    assert result == (None, None)
+    assert environment["x"] == 2
+
 
 if __name__ == "__main__":
     test_evaluate_numbers()

@@ -17,7 +17,7 @@ from tokenizer import tokenize
 #
 #   ===== CHAPTER 7: conditionals and statement blocks =====
 #   if_statement ::= "if" "(" expression ")" block [ "else" block ]
-#   block ::= "{" statement_list "}"
+#   block ::= "{" [ statement_list ] { ";" } "}"
 #   A bare statement is never a valid if/else body. An else that itself
 #   branches must write its own braces around a nested if_statement: this
 #   grammar has no "else if" shortcut.
@@ -227,11 +227,18 @@ def parse_statement(tokens):
 
 def parse_block(tokens):
     # ===== CHAPTER 7 =====
-    # block ::= "{" statement_list "}"
-    # A block is a statement_list wrapped in braces: nothing about running it
-    # differs from running the top-level program's statement_list, including
-    # accepting a trailing semicolon before the closing brace.
+    # block ::= "{" [ statement_list ] { ";" } "}"
+    # A block wraps a statement_list in braces, so running it does not differ
+    # from running the top-level program's statement_list, including
+    # accepting a trailing semicolon before the closing brace. Unlike the
+    # top-level program, the statement_list itself is optional: "{}" is an
+    # empty block, not an error. Extra semicolons are harmless even when
+    # there are no statements. The top-level program is unchanged.
     tokens = require(tokens, "{", "Expected '{' to start a block")
+    while tokens[0]["tag"] == ";":
+        tokens = tokens[1:]
+    if tokens[0]["tag"] == "}":
+        return {"tag": "statement_list", "statements": []}, tokens[1:]
     statements, tokens = parse_statement_list(tokens)
     tokens = require(tokens, "}", "Expected '}' to close a block")
     return statements, tokens
@@ -472,7 +479,16 @@ def test_parse_block():
     else:
         raise Exception("Expected SyntaxError for a block missing '{'")
 
-    expect_syntax_error("if (true) { }", "Expected statement")
+    # A block's statement_list is optional: "{}" is empty, not an error.
+    ast, rest = parse_block(tokenize("{ }"))
+    assert ast == {"tag": "statement_list", "statements": []}
+    assert rest[0]["tag"] is None
+
+    for source in ("{ ; }", "{ ;;; }", "{ ; // comment\n ; }"):
+        ast, rest = parse_block(tokenize(source))
+        assert ast == {"tag": "statement_list", "statements": []}
+        assert rest[0]["tag"] is None
+    expect_syntax_error("if (true) { ;", "Expected statement")
     expect_syntax_error("if (true) { x=1", "Expected '}'")
 
 
@@ -499,6 +515,17 @@ def test_parse_if_statement():
     # An "else if" chain is written as an else-block containing a nested if.
     ast, rest = parse_if_statement(tokenize("if (x) { y=1 } else { if (z) { y=2 } }"))
     assert ast["else"]["statements"][0]["tag"] == "if"
+    assert rest[0]["tag"] is None
+
+    # A branch's statement_list is optional: an empty then or else is legal.
+    ast, rest = parse_if_statement(tokenize("if (x) { }"))
+    assert ast["then"] == {"tag": "statement_list", "statements": []}
+    assert ast["else"] is None
+    assert rest[0]["tag"] is None
+
+    ast, rest = parse_if_statement(tokenize("if (x) { } else { }"))
+    assert ast["then"] == {"tag": "statement_list", "statements": []}
+    assert ast["else"] == {"tag": "statement_list", "statements": []}
     assert rest[0]["tag"] is None
 
     # Bodies must be braced; a bare statement is never a valid branch.
