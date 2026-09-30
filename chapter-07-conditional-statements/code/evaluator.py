@@ -1,8 +1,10 @@
 import builtins
 import io
+import math
 import re
 import sys
 from contextlib import redirect_stdout
+from decimal import Decimal
 from unittest.mock import patch
 
 import parser
@@ -15,6 +17,18 @@ def global_environment(environment):
     while "$PARENT" in environment:
         environment = environment["$PARENT"]
     return environment
+
+
+def format_number(value):
+    # Python writes large and small floats in exponent form (1e+16), which
+    # Vertex can neither tokenize nor convert back with number(). Spell the
+    # same shortest value out in positional form instead.
+    if type(value) is int or not math.isfinite(value):
+        return str(value)
+    text = format(Decimal(repr(value)), "f")
+    if "." not in text:
+        text += ".0"
+    return text
 
 
 def evaluate(ast, environment):
@@ -50,6 +64,10 @@ def evaluate(ast, environment):
                 return value, status
         if type(value) is not int:
             raise TypeError("exit code must be an integer")
+        # The operating system keeps only the low 8 bits of an exit code, so
+        # exit(256) would otherwise report success. Reject what cannot survive.
+        if not 0 <= value <= 255:
+            raise ValueError("exit code must be between 0 and 255")
         return value, "exit"
 
     if ast["tag"] == "boolean":
@@ -122,9 +140,12 @@ def evaluate(ast, environment):
             # Clear before returning so a later input expression cannot reuse it.
             global_environment(environment)["__input"] = ""
             return supplied, None
-        if prompt_ast is None:
-            return builtins.input(), None
-        return builtins.input(prompt), None
+        try:
+            if prompt_ast is None:
+                return builtins.input(), None
+            return builtins.input(prompt), None
+        except EOFError:
+            raise EOFError("input() found no more input to read") from None
 
     if ast["tag"] == "type_query":
         # Evaluate exactly once: type(input()) still consumes input. Report
@@ -148,8 +169,10 @@ def evaluate(ast, environment):
             if value:
                 return "true", None
             return "false", None
-        if type(value) in (int, float, str):
-            return str(value), None
+        if type(value) in (int, float):
+            return format_number(value), None
+        if type(value) is str:
+            return value, None
         raise TypeError("string argument must be a number, string, or boolean")
 
     if ast["tag"] == "number_conversion":
@@ -207,7 +230,8 @@ def evaluate(ast, environment):
         value, status = evaluate(ast["operand"], environment)
         if status is not None:
             return value, status
-        if type(value) is bool:
+        # type() rather than isinstance(): Python treats bool as an integer.
+        if type(value) not in (int, float):
             raise TypeError("Unary minus requires a number")
         return -value, None
 
@@ -243,6 +267,8 @@ def evaluate(ast, environment):
     # Python's operators deliberately provide the Chapter 3 behavior:
     # string + string concatenates, string * integer repeats, and integer *
     # string repeats in the opposite order. Numeric behavior is unchanged.
+    # Operand types are checked here, so errors describe Vertex values rather
+    # than surfacing Python's own messages.
     if ast["tag"] in ("+", "-", "*", "/"):
         left, status = evaluate(ast["left"], environment)
         if status is not None:
@@ -253,12 +279,28 @@ def evaluate(ast, environment):
         # Python treats bool as an integer; Vertex keeps truth values distinct.
         if type(left) is bool or type(right) is bool:
             raise TypeError("Arithmetic does not accept boolean operands")
+        numeric = type(left) in (int, float) and type(right) in (int, float)
         if ast["tag"] == "+":
+            if not numeric and not (type(left) is str and type(right) is str):
+                raise TypeError("+ requires two numbers or two strings")
             return left + right, None
+        if ast["tag"] == "*":
+            if numeric:
+                return left * right, None
+            if type(left) is str and type(right) is str:
+                raise TypeError("* cannot multiply two strings")
+            count = right if type(left) is str else left
+            if type(count) is not int:
+                raise TypeError("A string can only be repeated a whole number of times")
+            if count < 0:
+                raise ValueError("A string cannot be repeated a negative number of times")
+            return left * right, None
+        if not numeric:
+            raise TypeError(f"{ast['tag']} requires numbers")
         if ast["tag"] == "-":
             return left - right, None
-        if ast["tag"] == "*":
-            return left * right, None
+        if right == 0:
+            raise ZeroDivisionError("division by zero")
         return left / right, None
 
     if ast["tag"] == "print":
@@ -272,6 +314,8 @@ def evaluate(ast, environment):
                 text = "true"
             else:
                 text = "false"
+        elif type(result) is float:
+            text = format_number(result)
         else:
             text = str(result)
         print(text)

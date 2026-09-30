@@ -1,3 +1,5 @@
+import contextlib
+import io
 from pathlib import Path
 import subprocess
 import sys
@@ -32,8 +34,9 @@ class ConditionalTests(unittest.TestCase):
                 self.assertEqual(env['x'], expected)
 
     def test_condition_requires_boolean(self):
-        with self.assertRaises(TypeError):
-            self.run_source('if (1) { x=1 }')
+        for condition in ('1', '0', '"true"', '""'):
+            with self.subTest(condition=condition), self.assertRaises(TypeError):
+                self.run_source(f'if ({condition}) {{ x=1 }}')
 
     def test_empty_block_is_legal(self):
         # A block's statement_list is optional: "{}" is empty, not an error.
@@ -133,6 +136,20 @@ class ConditionalTests(unittest.TestCase):
             'x=1; if (true) { exit(7); x=99 }; x=2')
         self.assertEqual(result, (7, 'exit'))
         self.assertEqual(env['x'], 1)
+
+    def test_status_escapes_the_else_branch(self):
+        result, env = self.run_source(
+            'x=1; if (false) { x=99 } else { exit(4); x=98 }; x=2')
+        self.assertEqual(result, (4, 'exit'))
+        self.assertEqual(env['x'], 1)
+
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            result, env = self.run_source(
+                'x=1; if (false) { } else { assert false, "else failed" }; x=2')
+        self.assertEqual(result, (1, 'exit'))
+        self.assertEqual(env['x'], 1)
+        self.assertEqual(err.getvalue(), 'Assertion failed: else failed\n')
 
     def test_if_is_a_statement_not_an_expression(self):
         for source in ('x = if (true) { 1 }', 'print(if (true) { 1 })'):

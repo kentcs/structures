@@ -51,9 +51,11 @@ code { font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 <li><a href="#file-766572746578">vertex</a></li></ul></nav>
 <div class="viewer"><section class="source-file" id="file-6576616c7561746f722e7079" aria-labelledby="title-file-6576616c7561746f722e7079"><header class="file-header"><h2 id="title-file-6576616c7561746f722e7079">evaluator.py</h2></header><pre><code>import builtins
 import io
+import math
 import re
 import sys
 from contextlib import redirect_stdout
+from decimal import Decimal
 from unittest.mock import patch
 
 import parser
@@ -66,6 +68,18 @@ def global_environment(environment):
     while "$PARENT" in environment:
         environment = environment["$PARENT"]
     return environment
+
+
+def format_number(value):
+    # Python writes large and small floats in exponent form (1e+16), which
+    # Vertex can neither tokenize nor convert back with number(). Spell the
+    # same shortest value out in positional form instead.
+    if type(value) is int or not math.isfinite(value):
+        return str(value)
+    text = format(Decimal(repr(value)), "f")
+    if "." not in text:
+        text += ".0"
+    return text
 
 
 def evaluate(ast, environment):
@@ -101,6 +115,10 @@ def evaluate(ast, environment):
                 return value, status
         if type(value) is not int:
             raise TypeError("exit code must be an integer")
+        # The operating system keeps only the low 8 bits of an exit code, so
+        # exit(256) would otherwise report success. Reject what cannot survive.
+        if not 0 &lt;= value &lt;= 255:
+            raise ValueError("exit code must be between 0 and 255")
         return value, "exit"
 
     if ast["tag"] == "boolean":
@@ -173,9 +191,12 @@ def evaluate(ast, environment):
             # Clear before returning so a later input expression cannot reuse it.
             global_environment(environment)["__input"] = ""
             return supplied, None
-        if prompt_ast is None:
-            return builtins.input(), None
-        return builtins.input(prompt), None
+        try:
+            if prompt_ast is None:
+                return builtins.input(), None
+            return builtins.input(prompt), None
+        except EOFError:
+            raise EOFError("input() found no more input to read") from None
 
     if ast["tag"] == "type_query":
         # Evaluate exactly once: type(input()) still consumes input. Report
@@ -199,8 +220,10 @@ def evaluate(ast, environment):
             if value:
                 return "true", None
             return "false", None
-        if type(value) in (int, float, str):
-            return str(value), None
+        if type(value) in (int, float):
+            return format_number(value), None
+        if type(value) is str:
+            return value, None
         raise TypeError("string argument must be a number, string, or boolean")
 
     if ast["tag"] == "number_conversion":
@@ -258,7 +281,8 @@ def evaluate(ast, environment):
         value, status = evaluate(ast["operand"], environment)
         if status is not None:
             return value, status
-        if type(value) is bool:
+        # type() rather than isinstance(): Python treats bool as an integer.
+        if type(value) not in (int, float):
             raise TypeError("Unary minus requires a number")
         return -value, None
 
@@ -294,6 +318,8 @@ def evaluate(ast, environment):
     # Python's operators deliberately provide the Chapter 3 behavior:
     # string + string concatenates, string * integer repeats, and integer *
     # string repeats in the opposite order. Numeric behavior is unchanged.
+    # Operand types are checked here, so errors describe Vertex values rather
+    # than surfacing Python's own messages.
     if ast["tag"] in ("+", "-", "*", "/"):
         left, status = evaluate(ast["left"], environment)
         if status is not None:
@@ -304,12 +330,28 @@ def evaluate(ast, environment):
         # Python treats bool as an integer; Vertex keeps truth values distinct.
         if type(left) is bool or type(right) is bool:
             raise TypeError("Arithmetic does not accept boolean operands")
+        numeric = type(left) in (int, float) and type(right) in (int, float)
         if ast["tag"] == "+":
+            if not numeric and not (type(left) is str and type(right) is str):
+                raise TypeError("+ requires two numbers or two strings")
             return left + right, None
+        if ast["tag"] == "*":
+            if numeric:
+                return left * right, None
+            if type(left) is str and type(right) is str:
+                raise TypeError("* cannot multiply two strings")
+            count = right if type(left) is str else left
+            if type(count) is not int:
+                raise TypeError("A string can only be repeated a whole number of times")
+            if count &lt; 0:
+                raise ValueError("A string cannot be repeated a negative number of times")
+            return left * right, None
+        if not numeric:
+            raise TypeError(f"{ast['tag']} requires numbers")
         if ast["tag"] == "-":
             return left - right, None
-        if ast["tag"] == "*":
-            return left * right, None
+        if right == 0:
+            raise ZeroDivisionError("division by zero")
         return left / right, None
 
     if ast["tag"] == "print":
@@ -323,6 +365,8 @@ def evaluate(ast, environment):
                 text = "true"
             else:
                 text = "false"
+        elif type(result) is float:
+            text = format_number(result)
         else:
             text = str(result)
         print(text)
@@ -617,9 +661,26 @@ from tokenizer import tokenize
 # general function calls, parameters, or function values.
 
 
+def describe(token):
+    # Report a token the way it appears in Vertex source, not as a dictionary.
+    # Conversion keywords are tagged by operation, so restore their spelling.
+    position = f"at line {token['line']}, column {token['column']}"
+    if token["tag"] is None:
+        return f"end of input {position}"
+    spellings = {"number_conversion": "number", "string_conversion": "string",
+                 "boolean_conversion": "boolean", "type_query": "type"}
+    if token["tag"] == "string":
+        text = '"' + token["value"] + '"'
+    elif token["tag"] in ("number", "identifier"):
+        text = str(token["value"])
+    else:
+        text = spellings.get(token["tag"], token["tag"])
+    return f"'{text}' {position}"
+
+
 def require(tokens, tag, message):
     if tokens[0]["tag"] != tag:
-        raise SyntaxError(f"{message}, got {tokens[0]}")
+        raise SyntaxError(f"{message}, got {describe(tokens[0])}")
     return tokens[1:]
 
 
@@ -676,7 +737,7 @@ def parse_factor(tokens):
         tokens = require(tokens, ")", "Expected ')'")
         return node, tokens
 
-    raise SyntaxError(f"Expected factor, got {token}")
+    raise SyntaxError(f"Expected factor, got {describe(token)}")
 
 
 def parse_unary(tokens):
@@ -767,7 +828,7 @@ def parse_print_statement(tokens):
 def parse_assignment_statement(tokens):
     # assignment_statement ::= &lt;identifier&gt; "=" expression
     if tokens[0]["tag"] != "identifier":
-        raise SyntaxError(f"Expected identifier, got {tokens[0]}")
+        raise SyntaxError(f"Expected identifier, got {describe(tokens[0])}")
     # The target names a destination. It must not read an existing binding;
     # assigning a name for the first time is valid.
     identifier = {"tag": "identifier", "value": tokens[0]["value"]}
@@ -792,7 +853,7 @@ def parse_statement(tokens):
         return parse_if_statement(tokens)
     if tokens[0]["tag"] == "identifier":
         return parse_assignment_statement(tokens)
-    raise SyntaxError(f"Expected statement, got {tokens[0]}")
+    raise SyntaxError(f"Expected statement, got {describe(tokens[0])}")
 
 
 def parse_block(tokens):
@@ -839,7 +900,8 @@ def parse_assert_statement(tokens):
     expression, tokens = parse_expression(tokens)
     tokens = require(tokens, ",", "Expected ',' and explanation string after assertion")
     if tokens[0]["tag"] != "string":
-        raise SyntaxError("Expected explanation string after ','")
+        raise SyntaxError(
+            f"Expected explanation string after ',', got {describe(tokens[0])}")
     explanation = tokens[0]["value"]
     tokens = tokens[1:]
     return {"tag": "assert", "expression": expression,
@@ -892,7 +954,7 @@ def parse(tokens):
     ast, tokens = parse_program(tokens)
     # A valid prefix is not enough: reject missing separators and extra operators.
     if tokens[0]["tag"] is not None:
-        raise SyntaxError(f"Unexpected token: {tokens[0]}")
+        raise SyntaxError(f"Unexpected token: {describe(tokens[0])}")
     return ast
 
 
@@ -903,6 +965,15 @@ def expect_syntax_error(source, text):
         assert text in str(error), str(error)
     else:
         raise Exception(f"Expected SyntaxError for {source!r}")
+
+
+def test_error_messages_describe_tokens():
+    print("test error messages describe tokens")
+    expect_syntax_error("print(1", "got end of input at line 1, column 8")
+    expect_syntax_error("x = 1; x", "got end of input at line 1, column 9")
+    expect_syntax_error('x = number "1"', "got '\"1\"' at line 1, column 12")
+    expect_syntax_error("x = )", "got ')' at line 1, column 5")
+    expect_syntax_error("x = 1 y", "Unexpected token: 'y' at line 1, column 7")
 
 
 def test_parse_factor():
@@ -1150,6 +1221,7 @@ if __name__ == "__main__":
     test_parse_if_statement()
     test_parse_statement_list()
     test_parse_program()
+    test_error_messages_describe_tokens()
     print("done.")
 </code></pre></section>
 <section class="source-file" id="file-72756e2d74657374732e7368" aria-labelledby="title-file-72756e2d74657374732e7368" hidden><header class="file-header"><h2 id="title-file-72756e2d74657374732e7368">run-tests.sh</h2></header><pre><code>#!/usr/bin/env bash
@@ -1204,12 +1276,7 @@ from parser import parse
 from tokenizer import tokenize
 
 
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python runner.py &lt;program&gt;")
-        sys.exit(1)
-
-    program = sys.argv[1]
+def run(program):
     if program.endswith((".t", ".v")):
         with open(program, "r") as source_file:
             program = source_file.read().strip()
@@ -1222,6 +1289,26 @@ if __name__ == "__main__":
         sys.exit(value)
     if status is not None:
         raise ValueError(f"Unhandled evaluation status: {status}")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python runner.py &lt;program&gt;", file=sys.stderr)
+        sys.exit(1)
+
+    # Report a Vertex program's mistakes as one line, not a Python traceback.
+    # Anything else is a bug in the interpreter and keeps its traceback.
+    try:
+        run(sys.argv[1])
+    except SyntaxError as error:
+        print(f"Syntax error: {error}", file=sys.stderr)
+        sys.exit(1)
+    except OSError as error:
+        print(f"Cannot read {sys.argv[1]}: {error.strerror}", file=sys.stderr)
+        sys.exit(1)
+    except (TypeError, ValueError, ZeroDivisionError, EOFError) as error:
+        print(f"Runtime error: {error}", file=sys.stderr)
+        sys.exit(1)
 </code></pre></section>
 <section class="source-file" id="file-746573745f617373657274696f6e732e7079" aria-labelledby="title-file-746573745f617373657274696f6e732e7079" hidden><header class="file-header"><h2 id="title-file-746573745f617373657274696f6e732e7079">test_assertions.py</h2></header><pre><code>import contextlib
 import io
@@ -1505,7 +1592,9 @@ class Chapter2CompatibilityTests(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 </code></pre></section>
-<section class="source-file" id="file-746573745f636f6e646974696f6e616c732e7079" aria-labelledby="title-file-746573745f636f6e646974696f6e616c732e7079" hidden><header class="file-header"><h2 id="title-file-746573745f636f6e646974696f6e616c732e7079">test_conditionals.py</h2></header><pre><code>from pathlib import Path
+<section class="source-file" id="file-746573745f636f6e646974696f6e616c732e7079" aria-labelledby="title-file-746573745f636f6e646974696f6e616c732e7079" hidden><header class="file-header"><h2 id="title-file-746573745f636f6e646974696f6e616c732e7079">test_conditionals.py</h2></header><pre><code>import contextlib
+import io
+from pathlib import Path
 import subprocess
 import sys
 import unittest
@@ -1539,8 +1628,9 @@ class ConditionalTests(unittest.TestCase):
                 self.assertEqual(env['x'], expected)
 
     def test_condition_requires_boolean(self):
-        with self.assertRaises(TypeError):
-            self.run_source('if (1) { x=1 }')
+        for condition in ('1', '0', '"true"', '""'):
+            with self.subTest(condition=condition), self.assertRaises(TypeError):
+                self.run_source(f'if ({condition}) {{ x=1 }}')
 
     def test_empty_block_is_legal(self):
         # A block's statement_list is optional: "{}" is empty, not an error.
@@ -1640,6 +1730,20 @@ class ConditionalTests(unittest.TestCase):
             'x=1; if (true) { exit(7); x=99 }; x=2')
         self.assertEqual(result, (7, 'exit'))
         self.assertEqual(env['x'], 1)
+
+    def test_status_escapes_the_else_branch(self):
+        result, env = self.run_source(
+            'x=1; if (false) { x=99 } else { exit(4); x=98 }; x=2')
+        self.assertEqual(result, (4, 'exit'))
+        self.assertEqual(env['x'], 1)
+
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            result, env = self.run_source(
+                'x=1; if (false) { } else { assert false, "else failed" }; x=2')
+        self.assertEqual(result, (1, 'exit'))
+        self.assertEqual(env['x'], 1)
+        self.assertEqual(err.getvalue(), 'Assertion failed: else failed\n')
 
     def test_if_is_a_statement_not_an_expression(self):
         for source in ('x = if (true) { 1 }', 'print(if (true) { 1 })'):
@@ -1790,6 +1894,14 @@ class EvaluationStatusTests(unittest.TestCase):
             with self.subTest(source=source), self.assertRaises(TypeError):
                 self.expression(source)
 
+    def test_exit_code_must_fit_in_a_process_status(self):
+        # The operating system keeps only the low 8 bits: 256 would read as 0.
+        for code in (0, 255):
+            self.assertEqual(self.expression(f'exit({code})'), (code, 'exit'))
+        for source in ('exit(256)', 'exit(-1)', 'exit(1000)'):
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                self.expression(source)
+
     def test_unary_and_conversion_propagation(self):
         for source in ('-exit(7)', 'not exit(7)', 'number(exit(7))',
                        'string(exit(7))', 'boolean(exit(7))', 'type(exit(7))'):
@@ -1881,6 +1993,35 @@ class EvaluationStatusTests(unittest.TestCase):
             self.assertEqual(result.returncode, code)
             self.assertEqual(result.stdout, output)
             self.assertEqual(result.stderr, '')
+
+    def test_runner_reports_errors_without_traceback(self):
+        runner = Path(__file__).with_name('runner.py')
+        for source, message in [
+            ('print(1', "Syntax error: Expected ')' after print argument, "
+                        "got end of input at line 1, column 8\n"),
+            ('print(1 @ 2)', "Syntax error: Unexpected character '@' at line 1, "
+                             "column 9\n"),
+            ('print(missing)', 'Runtime error: Unknown identifier: missing\n'),
+            ('print(1/0)', 'Runtime error: division by zero\n'),
+            ('print(input())', 'Runtime error: input() found no more input to read\n'),
+            ('exit(256)', 'Runtime error: exit code must be between 0 and 255\n'),
+            ('missing-file.v', 'Cannot read missing-file.v: No such file or directory\n'),
+        ]:
+            with self.subTest(source=source):
+                result = subprocess.run([sys.executable, str(runner), source],
+                                        capture_output=True, text=True,
+                                        stdin=subprocess.DEVNULL)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, '')
+                self.assertEqual(result.stderr, message)
+
+    def test_runner_usage_goes_to_stderr(self):
+        runner = Path(__file__).with_name('runner.py')
+        result = subprocess.run([sys.executable, str(runner)],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(result.stderr, 'Usage: python runner.py &lt;program&gt;\n')
 
 
 if __name__ == '__main__':
@@ -1982,6 +2123,40 @@ class InputOutputAndNumberTests(unittest.TestCase):
         for source in ('x=string("42")', 'x=string(input())'):
             with self.subTest(source=source):
                 self.assertEqual(evaluate_source(source, {'__input': '42'})[1]['x'], '42')
+
+    def test_numbers_are_written_without_exponents(self):
+        # Python would write 1e+16, which Vertex can neither tokenize nor
+        # convert back with number(). Every written number must round-trip.
+        for expression, expected in [('10000000000000000.0', '10000000000000000.0'),
+                                     ('0.0000001', '0.0000001'), ('4/2', '2.0'),
+                                     ('0.1+0.2', '0.30000000000000004')]:
+            with self.subTest(expression=expression):
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    _, env = evaluate_source(
+                        f'value=string({expression});back=number(value);'
+                        f'print({expression})')
+                self.assertEqual(env['value'], expected)
+                self.assertEqual(env['back'], float(expected))
+                self.assertEqual(output.getvalue(), expected + '\n')
+
+    def test_arithmetic_operand_errors(self):
+        for source, error, message in [
+            ('x=-"a"', TypeError, 'Unary minus requires a number'),
+            ('x="a"-"b"', TypeError, '- requires numbers'),
+            ('x="a"/2', TypeError, '/ requires numbers'),
+            ('x="a"+1', TypeError, '+ requires two numbers or two strings'),
+            ('x="a"*"b"', TypeError, '* cannot multiply two strings'),
+            ('x="a"*2.5', TypeError, 'A string can only be repeated a whole number of times'),
+            ('x=-3*"a"', ValueError, 'A string cannot be repeated a negative number of times'),
+            ('x=1/0', ZeroDivisionError, 'division by zero'),
+        ]:
+            with self.subTest(source=source):
+                with self.assertRaises(error) as raised:
+                    evaluate_source(source)
+                self.assertEqual(str(raised.exception), message)
+        _, env = evaluate_source('x="ab"*0;y=0*"ab"')
+        self.assertEqual((env['x'], env['y']), ('', ''))
 
     def test_string_syntax(self):
         for source in ('x=string', 'x=string()', 'x=string(1', 'x=string(1,2)'):
@@ -2190,7 +2365,9 @@ def tokenize(characters):
         value = match.group(0)
 
         if current_tag == "error":
-            raise SyntaxError(f"Unexpected character: {value!r}")
+            raise SyntaxError(
+                f"Unexpected character {value!r} at line {line}, column {column}"
+            )
 
         # Comments and whitespace advance through the source but produce no token.
         # A string is matched as a whole, so "//" inside it is not a comment.
@@ -2358,7 +2535,7 @@ def test_error():
     try:
         tokenize("1@@@")
     except SyntaxError as error:
-        assert str(error) == "Unexpected character: '@'"
+        assert str(error) == "Unexpected character '@' at line 1, column 2"
     else:
         raise Exception("Expected SyntaxError")
 
@@ -2369,7 +2546,7 @@ def test_unterminated_string():
     try:
         tokenize('"never closed')
     except SyntaxError as error:
-        assert str(error) == "Unexpected character: '\"'"
+        assert str(error) == "Unexpected character '\"' at line 1, column 1"
     else:
         raise Exception("Expected SyntaxError")
 

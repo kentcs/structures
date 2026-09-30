@@ -47,9 +47,26 @@ from tokenizer import tokenize
 # general function calls, parameters, or function values.
 
 
+def describe(token):
+    # Report a token the way it appears in Vertex source, not as a dictionary.
+    # Conversion keywords are tagged by operation, so restore their spelling.
+    position = f"at line {token['line']}, column {token['column']}"
+    if token["tag"] is None:
+        return f"end of input {position}"
+    spellings = {"number_conversion": "number", "string_conversion": "string",
+                 "boolean_conversion": "boolean", "type_query": "type"}
+    if token["tag"] == "string":
+        text = '"' + token["value"] + '"'
+    elif token["tag"] in ("number", "identifier"):
+        text = str(token["value"])
+    else:
+        text = spellings.get(token["tag"], token["tag"])
+    return f"'{text}' {position}"
+
+
 def require(tokens, tag, message):
     if tokens[0]["tag"] != tag:
-        raise SyntaxError(f"{message}, got {tokens[0]}")
+        raise SyntaxError(f"{message}, got {describe(tokens[0])}")
     return tokens[1:]
 
 
@@ -106,7 +123,7 @@ def parse_factor(tokens):
         tokens = require(tokens, ")", "Expected ')'")
         return node, tokens
 
-    raise SyntaxError(f"Expected factor, got {token}")
+    raise SyntaxError(f"Expected factor, got {describe(token)}")
 
 
 def parse_unary(tokens):
@@ -197,7 +214,7 @@ def parse_print_statement(tokens):
 def parse_assignment_statement(tokens):
     # assignment_statement ::= <identifier> "=" expression
     if tokens[0]["tag"] != "identifier":
-        raise SyntaxError(f"Expected identifier, got {tokens[0]}")
+        raise SyntaxError(f"Expected identifier, got {describe(tokens[0])}")
     # The target names a destination. It must not read an existing binding;
     # assigning a name for the first time is valid.
     identifier = {"tag": "identifier", "value": tokens[0]["value"]}
@@ -222,7 +239,7 @@ def parse_statement(tokens):
         return parse_if_statement(tokens)
     if tokens[0]["tag"] == "identifier":
         return parse_assignment_statement(tokens)
-    raise SyntaxError(f"Expected statement, got {tokens[0]}")
+    raise SyntaxError(f"Expected statement, got {describe(tokens[0])}")
 
 
 def parse_block(tokens):
@@ -269,7 +286,8 @@ def parse_assert_statement(tokens):
     expression, tokens = parse_expression(tokens)
     tokens = require(tokens, ",", "Expected ',' and explanation string after assertion")
     if tokens[0]["tag"] != "string":
-        raise SyntaxError("Expected explanation string after ','")
+        raise SyntaxError(
+            f"Expected explanation string after ',', got {describe(tokens[0])}")
     explanation = tokens[0]["value"]
     tokens = tokens[1:]
     return {"tag": "assert", "expression": expression,
@@ -322,7 +340,7 @@ def parse(tokens):
     ast, tokens = parse_program(tokens)
     # A valid prefix is not enough: reject missing separators and extra operators.
     if tokens[0]["tag"] is not None:
-        raise SyntaxError(f"Unexpected token: {tokens[0]}")
+        raise SyntaxError(f"Unexpected token: {describe(tokens[0])}")
     return ast
 
 
@@ -333,6 +351,15 @@ def expect_syntax_error(source, text):
         assert text in str(error), str(error)
     else:
         raise Exception(f"Expected SyntaxError for {source!r}")
+
+
+def test_error_messages_describe_tokens():
+    print("test error messages describe tokens")
+    expect_syntax_error("print(1", "got end of input at line 1, column 8")
+    expect_syntax_error("x = 1; x", "got end of input at line 1, column 9")
+    expect_syntax_error('x = number "1"', "got '\"1\"' at line 1, column 12")
+    expect_syntax_error("x = )", "got ')' at line 1, column 5")
+    expect_syntax_error("x = 1 y", "Unexpected token: 'y' at line 1, column 7")
 
 
 def test_parse_factor():
@@ -580,4 +607,5 @@ if __name__ == "__main__":
     test_parse_if_statement()
     test_parse_statement_list()
     test_parse_program()
+    test_error_messages_describe_tokens()
     print("done.")
