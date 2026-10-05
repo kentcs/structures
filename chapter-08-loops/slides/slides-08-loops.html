@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 8: Loops</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="loops">Loops</h1>
+<p>Checking a condition more than once</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="breaking-changes">Breaking Changes</h2>
+<p><code>while</code>, <code>break</code>, and <code>continue</code>
+become keywords.</p>
+</section>
+<section><h2 id="a-basic-loop">A Basic Loop</h2>
+<pre class="vertex"><code>i = 0;
+while (i &lt; 3) {
+    print(i);
+    i = i + 1;
+}</code></pre>
+<p><strong>Prints <code>0</code>, <code>1</code>,
+<code>2</code>.</strong></p>
+</section>
+<section><h2 id="tracing-a-counter">Tracing a Counter</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th><code>i</code> before</th>
+<th>Condition</th>
+<th>Runs body?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1st</td>
+<td>0</td>
+<td>true</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>2nd</td>
+<td>1</td>
+<td>true</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>3rd</td>
+<td>2</td>
+<td>true</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>4th</td>
+<td>3</td>
+<td>false</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<p><strong>One more check than iterations.</strong></p>
+</section>
+<section><h2 id="condition-body-update">Condition, Body, Update</h2>
+<p><strong>Condition</strong>: <code>i &lt; 3</code> — checked before
+every pass.</p>
+<p><strong>Body</strong>: <code>print(i)</code> — what runs while it
+holds.</p>
+<p><strong>Update</strong>: <code>i = i + 1</code> — what changes before
+the next check.</p>
+</section>
+<section><h2 id="accumulating-a-sum">Accumulating a Sum</h2>
+<pre class="vertex"><code>n = 5;
+sum = 0;
+k = 1;
+while (k &lt;= n) {
+    sum = sum + k;
+    k = k + 1;
+}</code></pre>
+<p><strong><code>sum</code> ends at <code>15</code>.</strong></p>
+</section>
+<section><h2 id="accumulating-a-string">Accumulating a String</h2>
+<pre class="vertex"><code>letters = &quot;&quot;;
+j = 0;
+while (j &lt; 3) {
+    letters = letters + &quot;x&quot;;
+    j = j + 1;
+}</code></pre>
+<p><strong><code>letters</code> ends at <code>"xxx"</code>.</strong></p>
+</section>
+<section><h2 id="parsing-a-while-statement">Parsing a While Statement</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> parse_while_statement(tokens):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    tokens <span class="op">=</span> require(tokens, <span class="st">&quot;while&quot;</span>, <span class="st">&quot;Expected &#39;while&#39;&quot;</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    tokens <span class="op">=</span> require(tokens, <span class="st">&quot;(&quot;</span>, <span class="st">&quot;Expected &#39;(&#39; after &#39;while&#39;&quot;</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    condition, tokens <span class="op">=</span> parse_expression(tokens)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    tokens <span class="op">=</span> require(tokens, <span class="st">&quot;)&quot;</span>, <span class="st">&quot;Expected &#39;)&#39; after while condition&quot;</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    body, tokens <span class="op">=</span> parse_block(tokens)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;while&quot;</span>, <span class="st">&quot;condition&quot;</span>: condition,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;body&quot;</span>: body}, tokens</span></code></pre></div>
+</section>
+<section><h2 id="break-and-continue-are-just-keywords">Break and Continue Are
+Just Keywords</h2>
+<pre class="text"><code>break_statement ::= &quot;break&quot;
+continue_statement ::= &quot;continue&quot;</code></pre>
+<p><strong>No condition, no argument, no block.</strong></p>
+</section>
+<section><h2 id="evaluating-break-and-continue">Evaluating break and
+continue</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> ast[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;break&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">None</span>, <span class="st">&quot;break&quot;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> ast[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;continue&quot;</span>:</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">None</span>, <span class="st">&quot;continue&quot;</span></span></code></pre></div>
+</section>
+<section><h2 id="evaluating-a-loop">Evaluating a Loop</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> ast[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;while&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        condition, status <span class="op">=</span> evaluate(ast[<span class="st">&quot;condition&quot;</span>], environment)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> condition, status</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> condition:</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">None</span>, <span class="va">None</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        value, status <span class="op">=</span> evaluate(ast[<span class="st">&quot;body&quot;</span>], environment)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> status <span class="op">==</span> <span class="st">&quot;break&quot;</span>:</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">None</span>, <span class="va">None</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="kw">and</span> status <span class="op">!=</span> <span class="st">&quot;continue&quot;</span>:</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> value, status</span></code></pre></div>
+</section>
+<section><h2 id="checking-the-condition">Checking the Condition</h2>
+<p><img src="slide-assets/diagram-12.svg"
+alt="Checking the Condition" /></p>
+</section>
+<section><h2 id="after-the-body-runs">After the Body Runs</h2>
+<p><img src="slide-assets/diagram-13.svg"
+alt="After the Body Runs" /></p>
+<p><strong>Three outcomes, one box each.</strong></p>
+</section>
+<section><h2 id="break-finishes-the-nearest-loop">Break Finishes the Nearest
+Loop</h2>
+<pre class="vertex"><code>found = 0;
+search = 0;
+while (true) {
+    search = search + 1;
+    if (search == 4) {
+        break;
+    };
+    found = search;
+}</code></pre>
+<p><strong><code>search</code> ends at <code>4</code>.
+<code>found</code> ends at <code>3</code>.</strong></p>
+</section>
+<section><h2 id="continue-returns-to-the-condition">Continue Returns to the
+Condition</h2>
+<pre class="vertex"><code>total = 0;
+m = 0;
+while (m &lt; 5) {
+    m = m + 1;
+    if (m == 3) {
+        continue;
+    };
+    total = total + m;
+}</code></pre>
+<p><strong><code>total</code> ends at <code>12</code>: skips
+<code>3</code>.</strong></p>
+</section>
+<section><h2 id="nested-loops">Nested Loops</h2>
+<pre class="vertex"><code>outer = 0;
+combined = 0;
+while (outer &lt; 2) {
+    outer = outer + 1;
+    inner = 0;
+    while (true) {
+        inner = inner + 1;
+        if (inner == 2) { break; };
+        combined = combined + 1;
+    };
+    combined = combined + 10;
+}</code></pre>
+<p><strong><code>combined</code> ends at <code>22</code>.</strong></p>
+</section>
+<section><h2 id="misuse-outside-a-loop">Misuse Outside a Loop</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="op">==</span> <span class="st">&quot;exit&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    sys.exit(value)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&quot;Unhandled evaluation status: </span><span class="sc">{</span>status<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<p><strong>Diagnosed at evaluation, not parsing.</strong></p>
+</section>
+<section><h2 id="testing-the-contract">Testing the Contract</h2>
+<p>Zero, one, and repeated iterations; the boolean-condition
+requirement.</p>
+<p>break and continue skipping later body statements.</p>
+<p>continue reevaluating the condition exactly once, checked by mocked
+input() call count.</p>
+<p>Nested loops; exit and a failed assertion propagating out of a loop
+body.</p>
+</section>
+<section><h2 id="worth-checking-out-newton.v">Worth Checking Out: newton.v</h2>
+<pre class="vertex"><code>guess = (guess + S / guess) / 2;</code></pre>
+<p><strong>Newton’s method for square roots, in one line.</strong></p>
+</section>
+<section><h2 id="questions-for-thought">Questions for Thought</h2>
+<p>Why must continue return to the condition rather than directly to the
+body?</p>
+<p>Which changes to loop state establish progress toward
+termination?</p>
+<p>Why does an inner loop consume break but propagate exit?</p>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Class Calendar | Structure of Programming Languages</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 40px 20px; font-family: "Segoe UI", Tahoma, sans-serif; color: #292929; background: linear-gradient(135deg, #667eea, #764ba2); line-height: 1.5; }
+    main { max-width: 1100px; margin: auto; padding: 36px; background: white; border-radius: 8px; }
+    h1 { margin: 12px 0; color: #5267d4; font-size: 36px; }
+    h2 { font-size: 20px; margin-top: 28px; }
+    a { color: #344bad; }
+    .course { margin-bottom: 0; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin: 24px 0; table-layout: fixed; }
+    th, td { padding: 12px; text-align: left; vertical-align: top; border-bottom: 1px solid #d9dde6; overflow-wrap: anywhere; }
+    thead { background: #edf0fa; }
+    tbody tr:nth-child(even) { background: #f7f8fa; }
+    .week { width: 10%; } .dates { width: 19%; } .topic { width: 43%; } .notes { width: 28%; }
+    @media (max-width: 640px) {
+      body { padding: 12px; } main { padding: 18px; } h1 { font-size: 28px; }
+      table { font-size: 14px; } th, td { padding: 8px 4px; }
+      .week { width: 17%; } .dates { width: 21%; } .topic { width: 34%; }
+    }
+    @media print { body { padding: 0; background: white; } main { padding: 0; } nav { display: none; } tr { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <main>
+    <nav><a href="index.html">Back to chapters</a></nav>
+    <p class="course">Structure of Programming Languages</p>
+    <h1>Class Calendar</h1>
+    <p>Fall 2026: weekly schedule from October 5 through finals. Week 1 began August 24. This calendar records the remaining teaching schedule; the syllabus is unchanged.</p>
+    <table>
+      <caption>Remaining Fall 2026 schedule</caption>
+      <thead><tr><th class="week" scope="col">Week</th><th class="dates" scope="col">Dates</th><th class="topic" scope="col">Topic</th><th class="notes" scope="col">Calendar Notes</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">7</th><td>Oct 5-11</td><td>Chapter 8: Loops</td><td>Fall Break: Oct 8-11</td></tr>
+        <tr><th scope="row">8</th><td>Oct 12-18</td><td>Chapter 9: Lists and Indexing</td><td></td></tr>
+        <tr><th scope="row">9</th><td>Oct 19-25</td><td>Chapter 10: Objects</td><td></td></tr>
+        <tr><th scope="row">10</th><td>Oct 26-Nov 1</td><td>Chapter 11: Functions</td><td></td></tr>
+        <tr><th scope="row">11</th><td>Nov 2-8</td><td>Chapter 12: Scope and Closures</td><td></td></tr>
+        <tr><th scope="row">12</th><td>Nov 9-15</td><td>Chapter 13: Library Functions</td><td>Veterans Day: Wed, Nov 11; no classes</td></tr>
+        <tr><th scope="row">13</th><td>Nov 16-22</td><td>Chapter 14: Functional Programming</td><td></td></tr>
+        <tr><th scope="row">14</th><td>Nov 23-29</td><td>Review and catch-up</td><td>Thanksgiving Break: Nov 25-29</td></tr>
+        <tr><th scope="row">15</th><td>Nov 30-Dec 6</td><td>Chapter 15: Logic Programming</td><td></td></tr>
+        <tr><th scope="row">16</th><td>Dec 7-13</td><td>Final projects, course synthesis, and wrap-up</td><td>Classes end Sun, Dec 13</td></tr>
+        <tr><th scope="row">Finals</th><td>Dec 14-20</td><td>Final examinations</td><td></td></tr>
+      </tbody>
+    </table>
+    <h2>University Calendar</h2>
+    <p>Breaks and semester dates follow the Kent State University Academic Calendar: <a href="https://www.kent.edu/academic-calendar">https://www.kent.edu/academic-calendar</a>.</p>
+  </main>
+</body>
+</html>

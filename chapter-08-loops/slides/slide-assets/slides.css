@@ -1,0 +1,26 @@
+:root { --ink: #1e2b34; --accent: #285b76; --paper: #fcfbf8; }
+body { background: var(--paper); }
+.reveal { font-family: 'Times New Roman', serif; font-size: 36px; color: var(--ink); font-variant-numeric: lining-nums tabular-nums; }
+.reveal .slides { text-align: left; }
+.reveal .slides section { box-sizing: border-box; padding: 35px 48px; }
+.reveal h1 { font-size: 78px; line-height: 1.07; margin: 0 0 40px; }
+.reveal h2 { font-size: 48px; line-height: 1.12; margin: 0 0 40px; }
+.reveal p { line-height: 1.3; margin: 24px 0; }
+.reveal strong { color: var(--accent); }
+.reveal ul { margin: 28px 0 0 35px; }
+.reveal li { margin: 16px 0; line-height: 1.25; }
+.reveal table { width: 100%; border-collapse: collapse; font-size: 30px; margin: 28px 0; }
+.reveal th, .reveal td { border-bottom: 1px solid #c3cbd0; padding: 12px 18px; text-align: left; }
+.reveal th { color: var(--accent); }
+.reveal td:first-child { white-space: nowrap; }
+.reveal img { width: 100%; max-height: 260px; object-fit: contain; margin: 20px 0; }
+.reveal .slide-number { font: 16px Arial, sans-serif; color: var(--ink); background: transparent; right: 22px; bottom: 16px; }
+.reveal .controls, .reveal .progress { color: var(--accent); }
+
+.reveal pre { margin: 24px 0; padding: 22px 26px; background: #edf0f2; border-left: 4px solid var(--accent); box-sizing: border-box; white-space: pre; font-size: 27px; line-height: 1.35; }
+.reveal code { font-family: Menlo, monospace; font-size: 0.85em; }
+.reveal pre code { font-size: inherit; }
+.reveal ol { margin-left: 40px; }
+.reveal h1 { font-size: 70px; }
+.reveal .slide-number { right: auto; left: 22px; bottom: 18px; }
+.reveal img { max-height: 370px; }
