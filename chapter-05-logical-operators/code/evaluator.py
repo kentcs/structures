@@ -169,10 +169,11 @@ def evaluate(ast, environment):
             if ast["tag"] == "==":
                 return equal
             return not equal
-        if not numeric:
-            # This chapter defines ordering for numbers only, not for strings
-            # or booleans. Equality is available for all three value families.
-            raise TypeError("Ordering comparisons require numbers")
+        strings = type(left) is str and type(right) is str
+        if not (numeric or strings):
+            raise TypeError("Ordering comparisons require two numbers or two strings")
+        # Python string ordering is lexicographic by Unicode code point:
+        # the first unequal character decides; a matching shorter prefix wins.
         if ast["tag"] == "<":
             return left < right
         if ast["tag"] == "<=":
