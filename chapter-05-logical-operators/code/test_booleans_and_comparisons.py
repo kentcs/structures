@@ -68,7 +68,7 @@ class BooleanComparisonTests(unittest.TestCase):
         self.assertEqual(env["__input"], "")
 
     def test_type_errors(self):
-        for expression in ('"a"<"b"', '1<"2"', "true<false", "true+1",
+        for expression in ('"a"<2', '1<"2"', "true<false", "true+1",
                            "1-true", '"ha"*true', "false/2", "-true"):
             with self.subTest(expression=expression), self.assertRaises(TypeError):
                 self.value(expression)

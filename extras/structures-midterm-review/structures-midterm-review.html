@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Structures Midterm Review</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="structures-midterm-review">Structures Midterm Review</h1>
+<p>Study points and highlights from Chapters 0-8</p>
+<hr>
+<p class="slide-author">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="what-to-be-able-to-do">What to Be Able to Do</h2>
+<ul>
+<li>Recognize the reusable patterns in each module.</li>
+<li>Trace source through tokens and a tree.</li>
+<li>Explain a result using the evaluator’s rules.</li>
+<li>Follow changes to the environment and output.</li>
+<li>Identify the stage responsible for an error.</li>
+</ul>
+<p><strong>Explain why, not just what prints.</strong></p>
+</section>
+<section><h2 id="new-features-familiar-patterns">New Features, Familiar
+Patterns</h2>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Pattern we reuse</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tokenizer</td>
+<td>Match, tag, convert, advance</td>
+</tr>
+<tr>
+<td>Parser</td>
+<td>Consume a rule; return node and remainder</td>
+</tr>
+<tr>
+<td>Tree</td>
+<td>Tags select behavior; children hold substructure</td>
+</tr>
+<tr>
+<td>Evaluator</td>
+<td>Evaluate children; check status; perform work</td>
+</tr>
+<tr>
+<td>Runner</td>
+<td>Connect stages; handle program exit</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Learn the patterns as well as the individual
+features.</strong></p>
+</section>
+<section><h2 id="language-and-implementation">Language and Implementation</h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Concept</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Is this arrangement legal?</td>
+<td>Syntax</td>
+</tr>
+<tr>
+<td>What does it do?</td>
+<td>Semantics</td>
+</tr>
+<tr>
+<td>What machinery runs it?</td>
+<td>Implementation</td>
+</tr>
+</tbody>
+</table>
+<p><strong>A grammar alone does not define execution.</strong></p>
+</section>
+<section><h2 id="text-becomes-structure">Text Becomes Structure</h2>
+<p><img src="slide-assets/diagram-05.svg"
+alt="Text Becomes Structure" /></p>
+<p>An <strong>abstract syntax tree (AST)</strong> records operations and
+grouping.</p>
+</section>
+<section><h2 id="execution-or-translation">Execution or Translation?</h2>
+<table>
+<thead>
+<tr>
+<th>Approach</th>
+<th>Work performed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Interpreter</td>
+<td>Execute the program representation</td>
+</tr>
+<tr>
+<td>Compiler</td>
+<td>Translate it for later execution</td>
+</tr>
+<tr>
+<td>Transpiler</td>
+<td>Translate to another source language</td>
+</tr>
+<tr>
+<td>Just-in-time compiler</td>
+<td>Compile during execution</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Different routes; preserve the program’s
+meaning.</strong></p>
+</section>
+<section><h2 id="tokenization-order-matters">Tokenization: Order Matters</h2>
+<table>
+<thead>
+<tr>
+<th>Recognize first</th>
+<th>Otherwise</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>//</code> comment before <code>/</code></td>
+<td>Two division tokens</td>
+</tr>
+<tr>
+<td>Decimal forms before integers</td>
+<td>Only the initial digits match</td>
+</tr>
+<tr>
+<td><code>&lt;=</code> before <code>&lt;</code></td>
+<td>One operator becomes two</td>
+</tr>
+<tr>
+<td>Keywords before identifiers</td>
+<td>Keywords become names</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Word boundaries keep <code>printer</code> an
+identifier.</strong></p>
+</section>
+<section><h2 id="read-the-expression-tree">Read the Expression Tree</h2>
+<p><code>3 + 4 * 5</code></p>
+<p><img src="slide-assets/diagram-08.svg"
+alt="Read the Expression Tree" /></p>
+<p><strong>Result: 23.</strong> The grouping is already in the tree.</p>
+</section>
+<section><h2 id="precedence-and-associativity">Precedence and Associativity</h2>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Grouping</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>8 - 3 - 2</code></td>
+<td><code>(8 - 3) - 2</code></td>
+<td><code>3</code></td>
+</tr>
+<tr>
+<td><code>8 / 4 / 2</code></td>
+<td><code>(8 / 4) / 2</code></td>
+<td><code>1.0</code></td>
+</tr>
+<tr>
+<td><code>3 * -2</code></td>
+<td><code>3 * (-2)</code></td>
+<td><code>-6</code></td>
+</tr>
+<tr>
+<td><code>--3</code></td>
+<td><code>-(-3)</code></td>
+<td><code>3</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Precedence separates levels; associativity groups a
+chain.</strong></p>
+</section>
+<section><h2 id="parser-contracts">Parser Contracts</h2>
+<p>Extended Backus-Naur Form (EBNF):</p>
+<pre class="text"><code>term ::= unary { (&quot;*&quot; | &quot;/&quot;) unary }
+unary ::= &quot;-&quot; unary | factor</code></pre>
+<ul>
+<li>A helper returns <strong>a node and unused tokens</strong>.</li>
+<li><code>{ ... }</code> means repetition; <code>[ ... ]</code> means
+optional.</li>
+<li>The public parser requires the <strong>whole input</strong>.</li>
+</ul>
+</section>
+<section><h2 id="zero-or-more-the-same-parser-loop">Zero or More: The Same Parser
+Loop</h2>
+<pre class="text"><code>term      ::= unary     { (&quot;*&quot; | &quot;/&quot;) unary }
+logic_and ::= logic_not { &quot;and&quot; logic_not }</code></pre>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>left, tokens <span class="op">=</span> parse_operand(tokens)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="kw">in</span> operators:</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    op <span class="op">=</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>]</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    right, tokens <span class="op">=</span> parse_operand(tokens[<span class="dv">1</span>:])</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    left <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: op, <span class="st">&quot;left&quot;</span>: left, <span class="st">&quot;right&quot;</span>: right}</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> left, tokens</span></code></pre></div>
+</section>
+<section><h2 id="optional-once-repeat-or-recurse">Optional Once, Repeat, or
+Recurse?</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Grammar pattern</th>
+<th>Parser pattern</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[ ... ]</code></td>
+<td>Check with <code>if</code></td>
+<td>One comparison; optional <code>else</code></td>
+</tr>
+<tr>
+<td><code>{ ... }</code></td>
+<td>Check with <code>while</code></td>
+<td>More arithmetic or logical operands</td>
+</tr>
+<tr>
+<td>Prefix followed by same rule</td>
+<td>Recursive call</td>
+<td>Unary minus; logical <code>not</code></td>
+</tr>
+<tr>
+<td>Required sequence</td>
+<td>Consume each part</td>
+<td>Identifier, <code>=</code>, expression</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The grammar suggests the control structure.</strong></p>
+</section>
+<section><h2 id="reuse-structure-add-meaning">Reuse Structure, Add Meaning</h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Structure reused</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>String or boolean literal</td>
+<td>A tagged node with a value</td>
+</tr>
+<tr>
+<td>Arithmetic, comparison, <code>and</code></td>
+<td>A tag with left and right children</td>
+</tr>
+<tr>
+<td>Conversion or <code>type()</code></td>
+<td>One expression child</td>
+</tr>
+<tr>
+<td>Program, branch, loop body</td>
+<td>A statement-list node</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Similar nodes can still have different evaluation
+rules.</strong></p>
+</section>
+<section><h2 id="find-the-errors-stage">Find the Error’s Stage</h2>
+<table>
+<thead>
+<tr>
+<th>Source fragment</th>
+<th>Stage</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>3 @ 4</code></td>
+<td>Tokenizer</td>
+<td>Unrecognized character</td>
+</tr>
+<tr>
+<td><code>3 + * 4</code></td>
+<td>Parser</td>
+<td>Operand missing</td>
+</tr>
+<tr>
+<td><code>3 4</code></td>
+<td>Parser</td>
+<td>Leftover token</td>
+</tr>
+<tr>
+<td><code>3 / 0</code></td>
+<td>Evaluator</td>
+<td>Division by zero</td>
+</tr>
+<tr>
+<td><code>missing + 1</code></td>
+<td>Evaluator</td>
+<td>Unknown identifier</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="assignment-changes-state">Assignment Changes State</h2>
+<pre class="vertex"><code>x = 2;
+y = x + 3 * 4;
+x = x + 1;</code></pre>
+<table>
+<thead>
+<tr>
+<th>After statement</th>
+<th><code>x</code></th>
+<th><code>y</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>First</td>
+<td>2</td>
+<td>Not bound</td>
+</tr>
+<tr>
+<td>Second</td>
+<td>2</td>
+<td>14</td>
+</tr>
+<tr>
+<td>Third</td>
+<td>3</td>
+<td>14</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="lookup-and-assignment-differ">Lookup and Assignment Differ</h2>
+<table>
+<thead>
+<tr>
+<th>Environment</th>
+<th>Bindings</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Current</td>
+<td><code>x: 3</code>, <code>$PARENT: parent</code></td>
+</tr>
+<tr>
+<td>Parent</td>
+<td><code>x: 10</code>, <code>y: 20</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Lookup <code>x</code>: <strong>3</strong>. Lookup <code>y</code>:
+<strong>20</strong>.</li>
+<li>Ordinary assignment <code>y = 7</code>: writes
+<strong>here</strong>.</li>
+<li>The parent’s <code>y</code> stays <strong>20</strong>.</li>
+</ul>
+</section>
+<section><h2 id="strings-are-values">Strings Are Values</h2>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"3" + "4"</code></td>
+<td><code>"34"</code></td>
+</tr>
+<tr>
+<td><code>number("3") + 4</code></td>
+<td><code>7</code></td>
+</tr>
+<tr>
+<td><code>"ha" * 3</code></td>
+<td><code>"hahaha"</code></td>
+</tr>
+<tr>
+<td><code>"ha" * 2.0</code></td>
+<td>Type error</td>
+</tr>
+<tr>
+<td><code>"Answer: " + string(42)</code></td>
+<td><code>"Answer: 42"</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="input-and-output-state">Input and Output State</h2>
+<pre class="vertex"><code>__input = &quot;21&quot;;
+answer = number(input()) * 2;
+print(answer);</code></pre>
+<table>
+<thead>
+<tr>
+<th>Observation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>answer</code></td>
+<td>Number <code>42</code></td>
+</tr>
+<tr>
+<td><code>__input</code></td>
+<td>Empty string, consumed</td>
+</tr>
+<tr>
+<td><code>__output</code></td>
+<td>String <code>"42"</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="know-which-version-you-mean">Know Which Version You Mean</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Change</th>
+<th>Earlier</th>
+<th>Later</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Print spelling</td>
+<td><code>print x</code></td>
+<td><code>print(x)</code></td>
+</tr>
+<tr>
+<td><code>number(42)</code></td>
+<td>Type error in Strings and Basic I/O</td>
+<td><code>42</code> with Booleans and Comparisons</td>
+</tr>
+<tr>
+<td>Evaluator return</td>
+<td>A value</td>
+<td><code>(value, status)</code> with Returning Status</td>
+</tr>
+</tbody>
+</table>
+<p><strong>New keywords can also invalidate old variable
+names.</strong></p>
+</section>
+<section><h2 id="booleans-are-not-numbers">Booleans Are Not Numbers</h2>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1 == 1.0</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>true == 1</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>"1" == 1</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>true + 1</code></td>
+<td>Type error</td>
+</tr>
+<tr>
+<td><code>"ant" &lt; "bee"</code></td>
+<td><code>true</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Ordering accepts two numbers or two strings, not
+booleans.</strong></p>
+</section>
+<section><h2 id="explicit-conversions-and-type">Explicit Conversions and
+Type</h2>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>boolean(0)</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>boolean(" FALSE ")</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>boolean("0")</code></td>
+<td>Value error</td>
+</tr>
+<tr>
+<td><code>number(true)</code></td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td><code>type(.5)</code></td>
+<td><code>"number"</code></td>
+</tr>
+<tr>
+<td><code>type(1 &lt; 2)</code></td>
+<td><code>"boolean"</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="logical-grouping">Logical Grouping</h2>
+<p>Weakest to strongest:</p>
+<p><strong>or → and → not → comparison → arithmetic</strong></p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Source</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>a or b and c</code></td>
+<td><code>a or (b and c)</code></td>
+</tr>
+<tr>
+<td><code>not x == y</code></td>
+<td><code>not (x == y)</code></td>
+</tr>
+<tr>
+<td><code>&amp;&amp;</code>, <code>||</code>, <code>!</code></td>
+<td>Same tags as <code>and</code>, <code>or</code>,
+<code>not</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="short-circuiting-skips-work">Short-Circuiting Skips Work</h2>
+<pre class="vertex"><code>divisor = 0;
+safe = divisor != 0 and 10 / divisor &gt; 2;</code></pre>
+<table>
+<thead>
+<tr>
+<th>Left value</th>
+<th>Operator</th>
+<th>Right operand</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>false</code></td>
+<td><code>and</code></td>
+<td>Skipped</td>
+</tr>
+<tr>
+<td><code>true</code></td>
+<td><code>or</code></td>
+<td>Skipped</td>
+</tr>
+</tbody>
+</table>
+<p><strong>No evaluation means no input, lookup, or runtime
+error.</strong></p>
+</section>
+<section><h2 id="value-and-status-are-separate">Value and Status Are
+Separate</h2>
+<table>
+<thead>
+<tr>
+<th>Evaluation</th>
+<th>Python result pair</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>2 + 3</code></td>
+<td><code>(5, None)</code></td>
+</tr>
+<tr>
+<td><code>2 &gt; 3</code></td>
+<td><code>(False, None)</code></td>
+</tr>
+<tr>
+<td><code>print(5)</code></td>
+<td><code>(None, None)</code></td>
+</tr>
+<tr>
+<td><code>exit(7)</code></td>
+<td><code>(7, "exit")</code></td>
+</tr>
+<tr>
+<td>Failed assertion</td>
+<td><code>(1, "exit")</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>A false value is not a special status.</strong></p>
+</section>
+<section><h2 id="reuse-the-evaluation-contract">Reuse the Evaluation
+Contract</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>value, status <span class="op">=</span> evaluate(child, environment)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> value, status</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Only now use the value or perform the next effect.</span></span></code></pre></div>
+<p>The same check protects <strong>assignment, print, conversions,
+arithmetic, conditions, and statement lists</strong>.</p>
+</section>
+<section><h2 id="propagate-before-continuing">Propagate Before Continuing</h2>
+<p><img src="slide-assets/diagram-26.svg"
+alt="Propagate Before Continuing" /></p>
+<pre class="vertex"><code>x = 3;
+x = exit(7) + number(input());</code></pre>
+<p><strong>No input. No addition. No store. <code>x</code> stays
+3.</strong></p>
+</section>
+<section><h2 id="assertions-check-expectations">Assertions Check
+Expectations</h2>
+<pre class="vertex"><code>assert answer == 42, &quot;Expected 42&quot;;</code></pre>
+<ul>
+<li>True condition: normal completion.</li>
+<li>False condition: diagnostic to standard error, then <strong>exit
+1</strong>.</li>
+<li>Explanation: <strong>mandatory string literal</strong>.</li>
+</ul>
+</section>
+<section><h2 id="conditional-selection">Conditional Selection</h2>
+<pre class="vertex"><code>x = 1;
+if (true) {
+    x = 2;
+} else {
+    exit(9);
+};
+print(x);</code></pre>
+<p><strong>Prints 2.</strong> Only the selected block runs.</p>
+</section>
+<section><h2 id="braces-and-semicolons">Braces and Semicolons</h2>
+<pre class="vertex"><code>if (true) { x = 1; } else { x = 2; };
+print(x);</code></pre>
+<ul>
+<li>Braces are required, even for one statement.</li>
+<li>No semicolon between the then block and <code>else</code>.</li>
+<li>Separate the complete <code>if</code> from the next statement.</li>
+<li>A newline or <code>//</code> comment is <strong>not</strong> a
+separator.</li>
+</ul>
+</section>
+<section><h2 id="trace-the-loop">Trace the Loop</h2>
+<pre class="vertex"><code>i = 0;
+while (i &lt; 3) {
+    print(i);
+    i = i + 1;
+}</code></pre>
+<p><strong>Three body executions, four condition checks.</strong></p>
+<p>Output: <code>0</code>, <code>1</code>, <code>2</code>. Final
+<code>i</code>: <code>3</code>.</p>
+</section>
+<section><h2 id="which-construct-handles-status">Which Construct Handles
+Status?</h2>
+<table>
+<thead>
+<tr>
+<th>Body result</th>
+<th>Nearest while does what?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Normal completion</td>
+<td>Recheck condition</td>
+</tr>
+<tr>
+<td><code>continue</code></td>
+<td>Skip rest of body; recheck condition</td>
+</tr>
+<tr>
+<td><code>break</code></td>
+<td>Finish normally</td>
+</tr>
+<tr>
+<td><code>exit</code></td>
+<td>Propagate outward</td>
+</tr>
+</tbody>
+</table>
+<p><strong>An inner loop consumes its own break, not the outer loop’s
+work.</strong></p>
+</section>
+<section><h2 id="a-loop-can-refine-an-answer">A Loop Can Refine an Answer</h2>
+<p>Newton’s square-root update:</p>
+<pre class="vertex"><code>guess = (guess + S / guess) / 2;</code></pre>
+<ul>
+<li>Repeat while the estimate is changing.</li>
+<li>Compare the size of successive changes.</li>
+<li>Check the result by squaring it back.</li>
+</ul>
+<p><strong><code>newton.v</code> combines arithmetic, state, loops, and
+assertions.</strong></p>
+</section>
+<section><h2 id="study-by-tracing">Study by Tracing</h2>
+<ol type="1">
+<li>Identify the grammar and implementation pattern.</li>
+<li>Group the expression or draw its tree.</li>
+<li>Record the environment before each statement.</li>
+<li>Mark skipped branches and operands.</li>
+<li>Track output and the returned status separately.</li>
+</ol>
+<p><strong>When a result surprises you, locate the rule that explains
+it.</strong></p>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>

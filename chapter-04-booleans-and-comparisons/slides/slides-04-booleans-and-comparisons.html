@@ -67,6 +67,39 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a hr
 </tbody>
 </table>
 </section>
+<section><h2 id="ordering-strings">Ordering Strings</h2>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"ant" &lt; "bee"</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>"ant" &lt; "anteater"</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>"ant" &lt;= "ant"</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>"Z" &lt; "a"</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>"10" &lt; "2"</code></td>
+<td><code>true</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Compare characters, not numeric meanings.</strong></p>
+</section>
 <section><h2 id="types-still-matter">Types Still Matter</h2>
 <table>
 <thead>
@@ -85,7 +118,7 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a hr
 <td><code>false</code></td>
 </tr>
 <tr>
-<td><code>"a" &lt; "b"</code></td>
+<td><code>"1" &lt; 2</code></td>
 <td>Type error</td>
 </tr>
 <tr>
@@ -168,7 +201,7 @@ boolean(number(&quot;1&quot;))      true</code></pre>
 </section>
 <section><h2 id="the-comparison-tree">The Comparison Tree</h2>
 <p><code>1 + 2 * 3 &lt; 8</code></p>
-<p><img src="slide-assets/diagram-10.svg"
+<p><img src="slide-assets/diagram-11.svg"
 alt="The Comparison Tree" /></p>
 </section>
 <section><h2 id="one-comparison-at-a-time">One Comparison at a Time</h2>
