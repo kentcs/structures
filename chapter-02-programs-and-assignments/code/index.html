@@ -33,32 +33,14 @@ code { font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 <a href="../index.html">Back to chapter</a>
 <h1>Programs and Assignments: Code</h1>
 <div class="browser">
-<nav aria-label="Files"><ul><li><a href="#file-2e7079746573745f63616368652f2e67697469676e6f7265">.pytest_cache/.gitignore</a></li>
-<li><a href="#file-2e7079746573745f63616368652f43414348454449522e544147">.pytest_cache/CACHEDIR.TAG</a></li>
-<li><a href="#file-2e7079746573745f63616368652f762f63616368652f6e6f6465696473">.pytest_cache/v/cache/nodeids</a></li>
-<li><a href="#file-6576616c7561746f722e7079">evaluator.py</a></li>
+<nav aria-label="Files"><ul><li><a href="#file-6576616c7561746f722e7079">evaluator.py</a></li>
 <li><a href="#file-6578616d706c652e76">example.v</a></li>
 <li><a href="#file-7061727365722e7079">parser.py</a></li>
 <li><a href="#file-72756e6e65722e7079">runner.py</a></li>
 <li><a href="#file-746573745f61737369676e6d656e745f746172676574732e7079">test_assignment_targets.py</a></li>
 <li><a href="#file-746f6b656e697a65722e7079">tokenizer.py</a></li>
 <li><a href="#file-766572746578">vertex</a></li></ul></nav>
-<div class="viewer"><section class="source-file" id="file-2e7079746573745f63616368652f2e67697469676e6f7265" aria-labelledby="title-file-2e7079746573745f63616368652f2e67697469676e6f7265"><header class="file-header"><h2 id="title-file-2e7079746573745f63616368652f2e67697469676e6f7265">.pytest_cache/.gitignore</h2></header><pre><code># Created by pytest automatically.
-*
-</code></pre></section>
-<section class="source-file" id="file-2e7079746573745f63616368652f43414348454449522e544147" aria-labelledby="title-file-2e7079746573745f63616368652f43414348454449522e544147" hidden><header class="file-header"><h2 id="title-file-2e7079746573745f63616368652f43414348454449522e544147">.pytest_cache/CACHEDIR.TAG</h2></header><pre><code>Signature: 8a477f597d28d172789f06886806bc55
-# This file is a cache directory tag created by pytest.
-# For information about cache directory tags, see:
-#	https://bford.info/cachedir/spec.html
-</code></pre></section>
-<section class="source-file" id="file-2e7079746573745f63616368652f762f63616368652f6e6f6465696473" aria-labelledby="title-file-2e7079746573745f63616368652f762f63616368652f6e6f6465696473" hidden><header class="file-header"><h2 id="title-file-2e7079746573745f63616368652f762f63616368652f6e6f6465696473">.pytest_cache/v/cache/nodeids</h2></header><pre><code>[
-  "test_assignment_targets.py::AssignmentTests::test_non_identifier_targets_are_rejected",
-  "test_assignment_targets.py::AssignmentTests::test_print_returns_none_and_writes_output",
-  "test_assignment_targets.py::AssignmentTests::test_reassignment_reads_old_value_only_on_right",
-  "test_assignment_targets.py::AssignmentTests::test_string_node_is_not_an_assignment_destination",
-  "test_assignment_targets.py::AssignmentTests::test_target_is_identifier_and_creates_binding"
-]</code></pre></section>
-<section class="source-file" id="file-6576616c7561746f722e7079" aria-labelledby="title-file-6576616c7561746f722e7079" hidden><header class="file-header"><h2 id="title-file-6576616c7561746f722e7079">evaluator.py</h2></header><pre><code>import parser, tokenizer
+<div class="viewer"><section class="source-file" id="file-6576616c7561746f722e7079" aria-labelledby="title-file-6576616c7561746f722e7079"><header class="file-header"><h2 id="title-file-6576616c7561746f722e7079">evaluator.py</h2></header><pre><code>import parser, tokenizer
 
 
 def evaluate(ast, environment):

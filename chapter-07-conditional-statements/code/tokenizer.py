@@ -106,7 +106,9 @@ def tokenize(characters):
         value = match.group(0)
 
         if current_tag == "error":
-            raise SyntaxError(f"Unexpected character: {value!r}")
+            raise SyntaxError(
+                f"Unexpected character {value!r} at line {line}, column {column}"
+            )
 
         # Comments and whitespace advance through the source but produce no token.
         # A string is matched as a whole, so "//" inside it is not a comment.
@@ -274,7 +276,7 @@ def test_error():
     try:
         tokenize("1@@@")
     except SyntaxError as error:
-        assert str(error) == "Unexpected character: '@'"
+        assert str(error) == "Unexpected character '@' at line 1, column 2"
     else:
         raise Exception("Expected SyntaxError")
 
@@ -285,7 +287,7 @@ def test_unterminated_string():
     try:
         tokenize('"never closed')
     except SyntaxError as error:
-        assert str(error) == "Unexpected character: '\"'"
+        assert str(error) == "Unexpected character '\"' at line 1, column 1"
     else:
         raise Exception("Expected SyntaxError")
 
