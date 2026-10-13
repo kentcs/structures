@@ -55,6 +55,34 @@ combined[0] = 99;
 print(first);
 print(combined);
 
+// slice, head, and tail work on lists and strings. A slice includes its
+// start position and stops before its end position. Each result is new;
+// the original is untouched.
+letters = [10, 20, 30, 40];
+print(slice(letters, 1, 3));
+print(head(letters));
+print(tail(letters));
+word = "hello";
+print(slice(word, 1, 3));
+print(head(word));
+print(tail(word));
+print(length(word));
+
+// A string reads by index the way a list does; the result is a
+// one-character string. A string cannot be assigned into, only replaced.
+print(word[1]);
+word = "j" + tail(word);
+print(word);
+
+// head rejects an empty list or string, so a loop checks length first.
+remaining = [3, 1, 2];
+backwards = [];
+while (length(remaining) > 0) {
+    backwards = [head(remaining)] + backwards;
+    remaining = tail(remaining);
+};
+print(backwards);
+
 // exit still propagates through every new position: a list element, an
 // index base, an index, and an indexed assignment's right-hand value.
 // Inject it into the value this time; the list must stay unmutated.

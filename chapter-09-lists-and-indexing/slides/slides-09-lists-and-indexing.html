@@ -11,7 +11,8 @@ Gregory S. DeLozier, PhD
 </p>
 </section>
 <section><h2 id="breaking-changes">Breaking Changes</h2>
-<p><code>length</code> becomes a keyword.</p>
+<p><code>length</code>, <code>slice</code>, <code>head</code>, and
+<code>tail</code> are keywords.</p>
 <p><code>[</code> and <code>]</code> are now reserved for list literals
 and indexing.</p>
 </section>
@@ -29,9 +30,9 @@ element.</strong></p>
 <section><h2 id="index-typing">Index Typing</h2>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">type</span>(index) <span class="kw">is</span> <span class="bu">bool</span> <span class="kw">or</span> <span class="bu">type</span>(index) <span class="kw">not</span> <span class="kw">in</span> (<span class="bu">int</span>, <span class="bu">float</span>):</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;List index must be an integer&quot;</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;Index must be an integer&quot;</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">type</span>(index) <span class="kw">is</span> <span class="bu">float</span> <span class="kw">and</span> <span class="kw">not</span> index.is_integer():</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;List index must be an integer&quot;</span>)</span></code></pre></div>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;Index must be an integer&quot;</span>)</span></code></pre></div>
 <p><strong><code>3.0</code> is valid. <code>3.5</code> and
 <code>true</code> are not.</strong></p>
 </section>
@@ -52,6 +53,24 @@ while (i &lt; length(values)) {
 }</code></pre>
 <p><strong><code>total</code> ends at <code>23</code>.</strong></p>
 </section>
+<section><h2 id="slice-head-and-tail">Slice, Head, and Tail</h2>
+<pre class="vertex"><code>letters = [10, 20, 30, 40];
+print(slice(letters, 1, 3));
+print(head(letters));
+print(tail(letters));</code></pre>
+<p><strong>Prints <code>[20, 30]</code>, <code>10</code>,
+<code>[20, 30, 40]</code>.</strong></p>
+</section>
+<section><h2 id="guarding-head-and-tail">Guarding Head and Tail</h2>
+<pre class="vertex"><code>remaining = [3, 1, 2];
+backwards = [];
+while (length(remaining) &gt; 0) {
+    backwards = [head(remaining)] + backwards;
+    remaining = tail(remaining);
+}</code></pre>
+<p><strong><code>backwards</code> ends as
+<code>[2, 1, 3]</code>.</strong></p>
+</section>
 <section><h2 id="parsing-list-literals-and-postfix-chains">Parsing: List Literals
 and Postfix Chains</h2>
 <div class="sourceCode" id="cb1"><pre
@@ -71,9 +90,9 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    index, status <span class="op">=</span> evaluate(ast[<span class="st">&quot;index&quot;</span>], environment)</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> index, status</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">type</span>(base) <span class="kw">is</span> <span class="kw">not</span> <span class="bu">list</span>:</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;Indexing requires a list&quot;</span>)</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> base[require_list_index(index, base)], <span class="va">None</span></span></code></pre></div>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">type</span>(base) <span class="kw">not</span> <span class="kw">in</span> (<span class="bu">list</span>, <span class="bu">str</span>):</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;Indexing requires a list or string&quot;</span>)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> base[require_index(index, base)], <span class="va">None</span></span></code></pre></div>
 </section>
 <section><h2 id="indexed-assignment">Indexed Assignment</h2>
 <pre class="text"><code>assignment_statement ::= &lt;identifier&gt; { index_suffix } &quot;=&quot; expression</code></pre>
@@ -92,13 +111,14 @@ class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a hr
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> index, status</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">type</span>(base) <span class="kw">is</span> <span class="kw">not</span> <span class="bu">list</span>:</span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;Indexed assignment requires a list&quot;</span>)</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    key <span class="op">=</span> require_list_index(index, base)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    key <span class="op">=</span> require_index(index, base)</span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    destination <span class="op">=</span> base</span></code></pre></div>
 </section>
 <section><h2 id="the-evaluation-order">The Evaluation Order</h2>
 <p><strong>The target is resolved before the right-hand value, for every
 kind of target.</strong></p>
-<pre class="vertex"><code>a[exit(6)] = exit(999);</code></pre>
+<pre class="vertex"><code>a = [1, 2, 3];
+a[exit(6)] = exit(999);</code></pre>
 <p>Returns <code>(6, "exit")</code>, not <code>(999, "exit")</code>.</p>
 </section>
 <section><h2 id="mutation-and-rebinding">Mutation and Rebinding</h2>
@@ -110,7 +130,7 @@ print(original);</code></pre>
 possible.</strong></p>
 </section>
 <section><h2 id="two-names-one-list">Two Names, One List</h2>
-<p><img src="slide-assets/diagram-14.svg"
+<p><img src="slide-assets/diagram-16.svg"
 alt="Two Names, One List" /></p>
 </section>
 <section><h2 id="rebinding-is-different">Rebinding Is Different</h2>
@@ -119,8 +139,13 @@ print(alias);</code></pre>
 <p><strong>Still prints <code>[99, 2, 3]</code>.</strong></p>
 </section>
 <section><h2 id="rebinding-redirects-one-name">Rebinding Redirects One Name</h2>
-<p><img src="slide-assets/diagram-16.svg"
+<p><img src="slide-assets/diagram-18.svg"
 alt="Rebinding Redirects One Name" /></p>
+</section>
+<section><h2 id="mutation-reaches-outward">Mutation Reaches Outward</h2>
+<p><strong><code>x[10] = 4</code> reads <code>x</code> first, and
+reading has always searched outward through enclosing environments.
+Mutating what it finds needs no declaration.</strong></p>
 </section>
 <section><h2 id="equality">Equality</h2>
 <pre class="vertex"><code>print([1, 2] == [1, 2]);
@@ -141,13 +166,38 @@ list.</strong></p>
 <pre class="vertex"><code>print([1, &quot;hi&quot;, true, [2, 3]]);</code></pre>
 <p><strong>Prints <code>[1, "hi", true, [2, 3]]</code>.</strong></p>
 </section>
+<section><h2 id="self-reference">Self-Reference</h2>
+<pre class="vertex"><code>a = [0];
+a[0] = a;</code></pre>
+<p><strong><code>a[0]</code> is now the same list <code>a</code> names.
+Legal.</strong></p>
+<p><img src="slide-assets/diagram-23.svg" alt="Self-Reference" /></p>
+</section>
+<section><h2 id="self-reference-equality-and-printing">Self-Reference: Equality
+and Printing</h2>
+<p>Continuing from <code>a</code> on the previous slide:</p>
+<pre class="vertex"><code>print(a == a);
+print(a);</code></pre>
+<p><strong>Prints <code>true</code>, then <code>[[...]]</code>. No
+crash.</strong></p>
+</section>
 <section><h2 id="testing-the-contract">Testing the Contract</h2>
 <p>Empty and mixed-type literals; element evaluation order; nested
 literals and chained indexing.</p>
 <p>Every rejected index case: fractional, boolean, string, negative, out
 of range.</p>
+<p>Half-open slices, rejected bounds, head and tail on empty values,
+string length.</p>
+<p>String indexing: reading a character, the same rejected indices,
+assignment into a string rejected.</p>
+</section>
+<section><h2 id="testing-the-contract-continued">Testing the Contract
+(continued)</h2>
 <p>Mutation through an alias versus rebinding leaving the alias
 untouched; structural equality including the nested true != 1 case.</p>
+<p>Self-referential lists: direct and indirect cycles comparing equal to
+themselves and printing without crashing; two non-cyclic appearances of
+the same sublist still printing in full.</p>
 <p>exit injected at every new position: a list element, an index base,
 an index, and an indexed assignment’s right-hand value.</p>
 </section>
@@ -158,6 +208,8 @@ same value?</p>
 lists that look identical at a glance?</p>
 <p>What state can change before an indexed assignment encounters exit,
 and what can only change after it?</p>
+<p>head rejects an empty list; tail does not. What justifies treating
+the two differently?</p>
 </section></div></div>
 <script src="slide-assets/reveal.js"></script>
 <script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>

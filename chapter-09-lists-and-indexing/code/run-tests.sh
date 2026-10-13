@@ -27,7 +27,17 @@ expected_output='Chapter 9: Lists and Indexing
 true
 false
 [1, 2]
-[99, 2, 3, 4]'
+[99, 2, 3, 4]
+[20, 30]
+10
+[20, 30, 40]
+el
+h
+ello
+5
+e
+jello
+[2, 1, 3]'
 expected_status=3
 expected_stderr=''
 

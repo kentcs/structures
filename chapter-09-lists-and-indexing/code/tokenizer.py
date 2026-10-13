@@ -65,8 +65,13 @@ patterns = [
     (r"boolean\b", "boolean_conversion"),
     (r"type\b", "type_query"),
 
-    # ===== CHAPTER 9: length is a dedicated expression, not a function call =====
+    # ===== CHAPTER 9: length, slice, head, and tail are dedicated expressions =====
+    # They are written like calls, but they are not function calls: this
+    # chapter has no general function syntax.
     (r"length\b", "length"),
+    (r"slice\b", "slice"),
+    (r"head\b", "head"),
+    (r"tail\b", "tail"),
 
     (r"[a-zA-Z_][\w]*", "identifier"),
     (r".", "error"),
@@ -277,6 +282,25 @@ def test_lists_and_indexing():
     assert tokens[1]["value"] == "length_two"
 
 
+def test_slice_head_tail_keywords():
+    # ===== CHAPTER 9 TEST =====
+    print("test tokenize slice, head, and tail")
+    tokens = tokenize("slice(items, 1, 3) head(items) tail(items)")
+    tags = [token["tag"] for token in tokens]
+    assert tags == ["slice", "(", "identifier", ",", "number", ",", "number", ")",
+                    "head", "(", "identifier", ")",
+                    "tail", "(", "identifier", ")", None]
+
+    # Word boundaries keep longer names intact.
+    tokens = tokenize("sliced header tailor head_two")
+    tags = [token["tag"] for token in tokens]
+    assert tags == ["identifier", "identifier", "identifier", "identifier", None]
+    assert tokens[0]["value"] == "sliced"
+    assert tokens[1]["value"] == "header"
+    assert tokens[2]["value"] == "tailor"
+    assert tokens[3]["value"] == "head_two"
+
+
 def test_identifiers():
     print("test tokenize identifiers")
     tokens = tokenize("foo bar baz")
@@ -343,6 +367,7 @@ if __name__ == "__main__":
     test_blocks_and_conditionals()
     test_loop_keywords()
     test_lists_and_indexing()
+    test_slice_head_tail_keywords()
     test_expressions()
     test_identifiers()
     test_whitespace()

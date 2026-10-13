@@ -59,7 +59,8 @@ from tokenizer import tokenize
 #   factor ::= <number> | <string> | <identifier> | "true" | "false" | input_expression
 #          | number_expression | string_expression | boolean_expression
 #          | type_expression | exit_expression | list_expression
-#          | length_expression | "(" expression ")"
+#          | length_expression | slice_expression | head_expression
+#          | tail_expression | "(" expression ")"
 #   exit_expression ::= "exit" "(" [ expression ] ")"
 #   input_expression ::= "input" "(" [ expression ] ")"
 #   number_expression ::= "number" "(" expression ")"
@@ -67,9 +68,14 @@ from tokenizer import tokenize
 #   boolean_expression ::= "boolean" "(" expression ")"
 #   type_expression ::= "type" "(" expression ")"
 #
-#   ===== CHAPTER 9: list literals and length =====
+#   ===== CHAPTER 9: list literals, length, slice, head, and tail =====
 #   list_expression ::= "[" [ expression { "," expression } ] "]"
 #   length_expression ::= "length" "(" expression ")"
+#   slice_expression ::= "slice" "(" expression "," expression "," expression ")"
+#   head_expression ::= "head" "(" expression ")"
+#   tail_expression ::= "tail" "(" expression ")"
+#   slice, head, and tail are dedicated forms, like length: the syntax looks
+#   like a call, but no general function call exists yet.
 #
 # input has function-shaped syntax, but this chapter does not implement
 # general function calls, parameters, or function values.
@@ -120,7 +126,7 @@ def parse_factor(tokens):
     # checking the argument's runtime type belongs to the evaluator.
     operations = {"number_conversion": "number", "string_conversion": "string",
                   "boolean_conversion": "boolean", "type_query": "type",
-                  "length": "length"}
+                  "length": "length", "head": "head", "tail": "tail"}
     if token["tag"] in operations:
         name = operations[token["tag"]]
         tokens = require(tokens[1:], "(", f"Expected '(' after '{name}'")
@@ -131,6 +137,10 @@ def parse_factor(tokens):
     # ===== CHAPTER 9: list literal =====
     if token["tag"] == "[":
         return parse_list_expression(tokens)
+
+    # ===== CHAPTER 9: slice takes three expressions =====
+    if token["tag"] == "slice":
+        return parse_slice_expression(tokens)
 
     if token["tag"] == "(":
         # Parentheses restart at the lowest-precedence rule, allowing a complete
@@ -155,6 +165,22 @@ def parse_list_expression(tokens):
             items.append(item)
     tokens = require(tokens, "]", "Expected ']' to close list literal")
     return {"tag": "list", "items": items}, tokens
+
+
+def parse_slice_expression(tokens):
+    # ===== CHAPTER 9 =====
+    # slice_expression ::= "slice" "(" expression "," expression "," expression ")"
+    # The three expressions are the sequence, the start position, and the end
+    # position. Checking their types and ranges belongs to the evaluator.
+    tokens = require(tokens, "slice", "Expected 'slice'")
+    tokens = require(tokens, "(", "Expected '(' after 'slice'")
+    sequence, tokens = parse_expression(tokens)
+    tokens = require(tokens, ",", "Expected ',' after slice sequence")
+    start, tokens = parse_expression(tokens)
+    tokens = require(tokens, ",", "Expected ',' after slice start")
+    end, tokens = parse_expression(tokens)
+    tokens = require(tokens, ")", "Expected ')' after slice end")
+    return {"tag": "slice", "expression": sequence, "start": start, "end": end}, tokens
 
 
 def parse_complex_suffixes(node, tokens):
@@ -566,6 +592,50 @@ def test_parse_length_expression():
     expect_syntax_error("x=length(items", "Expected ')'")
 
 
+def test_parse_slice_head_tail_expressions():
+    # ===== CHAPTER 9 TESTS =====
+    print("test parse slice, head, and tail expressions")
+    ast, rest = parse_factor(tokenize("slice(items, 1, 3)"))
+    assert ast == {"tag": "slice",
+                   "expression": {"tag": "identifier", "value": "items"},
+                   "start": {"tag": "number", "value": 1},
+                   "end": {"tag": "number", "value": 3}}
+    assert rest[0]["tag"] is None
+
+    ast, rest = parse_factor(tokenize("head(items)"))
+    assert ast == {"tag": "head",
+                   "expression": {"tag": "identifier", "value": "items"}}
+    assert rest[0]["tag"] is None
+
+    ast, rest = parse_factor(tokenize("tail(items)"))
+    assert ast == {"tag": "tail",
+                   "expression": {"tag": "identifier", "value": "items"}}
+    assert rest[0]["tag"] is None
+
+    # Each result is a factor, so it can be indexed or nested immediately.
+    ast, rest = parse_complex_expression(tokenize("tail(items)[0]"))
+    assert ast == {"tag": "complex",
+                   "base": {"tag": "tail",
+                            "expression": {"tag": "identifier", "value": "items"}},
+                   "index": {"tag": "number", "value": 0}}
+    assert rest[0]["tag"] is None
+
+    ast, rest = parse_factor(tokenize("slice(tail(items), 0, length(items))"))
+    assert ast["tag"] == "slice"
+    assert ast["expression"]["tag"] == "tail"
+    assert ast["end"]["tag"] == "length"
+
+    expect_syntax_error("x=slice items, 1, 3)", "Expected '('")
+    expect_syntax_error("x=slice(items 1, 3)", "Expected ','")
+    expect_syntax_error("x=slice(items, 1 3)", "Expected ','")
+    expect_syntax_error("x=slice(items, 1)", "Expected ','")
+    expect_syntax_error("x=slice(items, 1, 3", "Expected ')'")
+    expect_syntax_error("x=head items)", "Expected '('")
+    expect_syntax_error("x=head(items", "Expected ')'")
+    expect_syntax_error("x=tail items)", "Expected '('")
+    expect_syntax_error("x=tail(items", "Expected ')'")
+
+
 def test_parse_term_and_expression():
     print("test parse term and expression")
     ast, rest = parse_expression(tokenize("3*4+5-6"))
@@ -806,6 +876,7 @@ if __name__ == "__main__":
     test_parse_list_expression()
     test_parse_complex_expression_indexing()
     test_parse_length_expression()
+    test_parse_slice_head_tail_expressions()
     test_parse_term_and_expression()
     test_parse_print_statement()
     test_parse_assignment_statement()

@@ -104,6 +104,23 @@ class ListTests(unittest.TestCase):
         self.assertEqual(env['b'], [1, 2])
         self.assertIsNot(env['a'], env['b'])
 
+    def test_indexed_assignment_mutates_a_list_in_an_enclosing_environment(self):
+        # Indexed assignment resolves its target by reading it, and reads
+        # have searched outward through $PARENT since Chapter 6. No new
+        # code made this possible; a child environment is enough to show it.
+        parent = {'a': [1, 2]}
+        child = {'$PARENT': parent}
+        self.run_source('a[0] = 99', child)
+        self.assertEqual(parent['a'], [99, 2])
+        self.assertNotIn('a', child)
+
+    def test_plain_rebinding_shadows_instead_of_reaching_an_enclosing_environment(self):
+        parent = {'a': [1, 2]}
+        child = {'$PARENT': parent}
+        self.run_source('a = [9, 9]', child)
+        self.assertEqual(parent['a'], [1, 2])
+        self.assertEqual(child['a'], [9, 9])
+
     def test_concatenation_produces_an_independent_list(self):
         _, env = self.run_source('a=[1, 2]; b=[3, 4]; c=a+b; c[0]=99')
         self.assertEqual(env['a'], [1, 2])
@@ -151,6 +168,55 @@ class ListTests(unittest.TestCase):
             with self.subTest(operator=operator):
                 with self.assertRaises(TypeError):
                     self.run_source(f'x=[1] {operator} [2]')
+
+    # ===== Cyclic lists =====
+    # Indexed assignment can make a list contain itself (a[0] = a). Chapter
+    # 9 allows this rather than detecting and rejecting it; equality and
+    # printing must still terminate instead of recursing forever.
+
+    def test_self_referential_list_equals_itself(self):
+        _, env = self.run_source('a=[0]; a[0]=a; x = a == a')
+        self.assertEqual(env['x'], True)
+
+    def test_self_referential_list_prints_with_ellipsis(self):
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.run_source('a=[0]; a[0]=a; print(a)')
+        self.assertEqual(output.getvalue(), '[[...]]\n')
+
+    def test_indirect_two_list_cycle_prints_with_ellipsis(self):
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.run_source('a=[0]; b=[a]; a[0]=b; print(a)')
+        self.assertEqual(output.getvalue(), '[[[...]]]\n')
+
+    def test_two_distinct_equal_cycles_compare_equal(self):
+        # Identity alone only covers comparing a cycle to itself; two
+        # separately built cycles need pair tracking, not just identity.
+        _, env = self.run_source('a=[1,0]; a[1]=a; b=[1,0]; b[1]=b; x = a == b')
+        self.assertEqual(env['x'], True)
+
+    def test_two_distinct_cycles_with_different_payload_compare_unequal(self):
+        _, env = self.run_source('a=[1,0]; a[1]=a; b=[2,0]; b[1]=b; x = a == b')
+        self.assertEqual(env['x'], False)
+
+    def test_two_distinct_cycles_with_different_length_compare_unequal(self):
+        _, env = self.run_source('a=[1,0]; a[1]=a; b=[1,0,0]; b[1]=b; x = a == b')
+        self.assertEqual(env['x'], False)
+
+    def test_shared_non_cyclic_sublist_still_prints_in_full(self):
+        # A regression guard: the same sublist appearing twice as a sibling
+        # is sharing, not a cycle, and must print in full both times.
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.run_source('x=[1, 2]; a=[x, x]; print(a)')
+        self.assertEqual(output.getvalue(), '[[1, 2], [1, 2]]\n')
 
     # ===== length() =====
 
@@ -241,6 +307,18 @@ class ListTests(unittest.TestCase):
         result, env = self.run_source('a=[1, 2, 3]; a[exit(6)]=exit(999)')
         self.assertEqual(result, (6, 'exit'))
         self.assertEqual(env['a'], [1, 2, 3])
+
+    def test_a_side_effect_earlier_in_the_index_survives_a_later_exit(self):
+        # Resolving the target before the value protects the list itself,
+        # not every observable effect, and not the rest of the environment
+        # either: input() also updates __input, and that update is not
+        # undone. A side effect that runs before exit is reached stands.
+        with patch('builtins.input', side_effect=['42']) as fake_input:
+            result, env = self.run_source(
+                'a=[1, 2, 3]; a[number(input()) + exit(6)]=exit(999)')
+        self.assertEqual(result, (6, 'exit'))
+        self.assertEqual(env['a'], [1, 2, 3])
+        fake_input.assert_called_once()
 
     def test_exit_from_a_chained_assignment_base_wins_over_the_value(self):
         result, env = self.run_source('m=[[1, 2], [3, 4]]; m[exit(7)][0]=exit(999)')
