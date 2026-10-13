@@ -49,6 +49,9 @@ code { font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 <li><a href="#file-746573745f6c697374732e7079">test_lists.py</a></li>
 <li><a href="#file-746573745f6c6f676963616c5f6f70657261746f72732e7079">test_logical_operators.py</a></li>
 <li><a href="#file-746573745f6c6f6f70732e7079">test_loops.py</a></li>
+<li><a href="#file-746573745f70726163746963655f616e73776572732e7079">test_practice_answers.py</a></li>
+<li><a href="#file-746573745f736c6963655f686561645f7461696c2e7079">test_slice_head_tail.py</a></li>
+<li><a href="#file-746573745f737472696e675f696e646578696e672e7079">test_string_indexing.py</a></li>
 <li><a href="#file-746573745f737472696e675f6f72646572696e672e7079">test_string_ordering.py</a></li>
 <li><a href="#file-746f6b656e697a65722e7079">tokenizer.py</a></li>
 <li><a href="#file-766572746578">vertex</a></li></ul></nav>
@@ -71,47 +74,107 @@ def global_environment(environment):
     return environment
 
 
-def require_list_index(index, base):
+def require_index(index, base):
     # ===== CHAPTER 9 =====
     # An index must be an integer, or a float with no fractional part:
     # 3.0 is accepted, 3.5 is not. Python treats bool as a subtype of int,
     # so it is excluded explicitly rather than by accident. No negative
     # indices, and no silent growth on assignment: both directions of
-    # out-of-range access raise the same error.
+    # out-of-range access raise the same error. The same rules apply to a
+    # list and to a string.
     if type(index) is bool or type(index) not in (int, float):
-        raise TypeError("List index must be an integer")
+        raise TypeError("Index must be an integer")
     if type(index) is float and not index.is_integer():
-        raise TypeError("List index must be an integer")
+        raise TypeError("Index must be an integer")
     index = int(index)
     if not (0 &lt;= index &lt; len(base)):
-        raise IndexError("List index out of range")
+        raise IndexError("Index out of range")
     return index
 
 
-def vertex_equal(left, right):
+def require_slice_bound(bound, sequence):
+    # ===== CHAPTER 9 =====
+    # A slice bound is an integer, or a float with no fractional part, as for
+    # indexing. Unlike an index, a bound may equal the length: slice(t, 0,
+    # length(t)) is the whole sequence, and the end position of a slice is
+    # not an element. No negatives and no clamping: an out-of-range bound
+    # raises the same error as an out-of-range index.
+    if type(bound) is bool or type(bound) not in (int, float):
+        raise TypeError("Slice bounds must be integers")
+    if type(bound) is float and not bound.is_integer():
+        raise TypeError("Slice bounds must be integers")
+    bound = int(bound)
+    if not (0 &lt;= bound &lt;= len(sequence)):
+        raise IndexError("Slice bound out of range")
+    return bound
+
+
+def vertex_equal(left, right, comparing=None):
     # ===== CHAPTER 9 =====
     # Lists compare structurally, recursively applying this same rule to
     # every element, rather than Python's own ==, which would let a
     # nested true and 1 compare equal and break the Chapter 4 rule that
     # they never do.
+    #
+    # Two extra mechanisms guard against indexed assignment making a list
+    # contain itself (a[0] = a). The identity check is the common case
+    # and the cheap one: two names for the same list are equal without
+    # looking at a single element. It is not enough on its own, though:
+    # two separately built cyclic lists (a=[0]; a[0]=a; b=[0]; b[0]=b)
+    # are never identical, so comparing them would still recurse forever
+    # without comparing is tracking which pairs are already being
+    # compared on the path from the outermost call to here. Reaching the
+    # same pair again means nothing left to compare could ever disagree,
+    # so it counts as equal and the recursion stops. comparing is a
+    # plain set, mutated with add before recursing and discard after, so
+    # each list pair costs one O(1) membership test, not a copy of the
+    # whole set at every level.
+    if left is right:
+        return True
     if type(left) is list and type(right) is list:
+        if comparing is None:
+            comparing = set()
+        pair = (id(left), id(right))
+        if pair in comparing:
+            return True
         if len(left) != len(right):
             return False
-        return all(vertex_equal(l, r) for l, r in zip(left, right))
+        comparing.add(pair)
+        try:
+            return all(vertex_equal(l, r, comparing) for l, r in zip(left, right))
+        finally:
+            comparing.discard(pair)
     numeric = type(left) in (int, float) and type(right) in (int, float)
     return (numeric or type(left) is type(right)) and left == right
 
 
-def vertex_repr(value):
+def vertex_repr(value, ancestors=None):
     # ===== CHAPTER 9 =====
     # The display form used inside a list, where a bare string needs
     # quotes to stay distinguishable from everything around it. print()
     # and string() use this for a list; a string or number printed on its
     # own still uses its plain, unquoted form.
+    #
+    # Identity alone cannot stop a cyclic list the way it does in
+    # vertex_equal: printing one still has to describe an element that
+    # is the list itself. ancestors tracks which lists are currently
+    # being printed, on the path from the outermost call down to here,
+    # the same add-before/discard-after pattern vertex_equal uses:
+    # reaching one again prints "..." instead of recursing into it
+    # again, and discarding on the way back out means two separate,
+    # non-cyclic appearances of the same list still both print in full.
     if type(value) is bool:
         return "true" if value else "false"
     if type(value) is list:
-        return "[" + ", ".join(vertex_repr(item) for item in value) + "]"
+        if ancestors is None:
+            ancestors = set()
+        if id(value) in ancestors:
+            return "[...]"
+        ancestors.add(id(value))
+        try:
+            return "[" + ", ".join(vertex_repr(item, ancestors) for item in value) + "]"
+        finally:
+            ancestors.discard(id(value))
     if type(value) is str:
         escaped = (value.replace("\\", "\\\\").replace('"', '\\"')
                    .replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r"))
@@ -228,17 +291,62 @@ def evaluate(ast, environment):
         index, status = evaluate(ast["index"], environment)
         if status is not None:
             return index, status
-        if type(base) is not list:
-            raise TypeError("Indexing requires a list")
-        return base[require_list_index(index, base)], None
+        # ===== CHAPTER 9: a string can be read by index, not assigned =====
+        # Reading a string yields a one-character string; Vertex has no
+        # separate character type. Assignment still requires a list.
+        if type(base) not in (list, str):
+            raise TypeError("Indexing requires a list or string")
+        return base[require_index(index, base)], None
 
     if ast["tag"] == "length":
         value, status = evaluate(ast["expression"], environment)
         if status is not None:
             return value, status
-        if type(value) is not list:
-            raise TypeError("length argument must be a list")
+        # Lists count elements; strings count characters.
+        if type(value) not in (list, str):
+            raise TypeError("length argument must be a list or string")
         return len(value), None
+
+    # ===== CHAPTER 9: head, tail, and slice work on lists and strings =====
+    if ast["tag"] in ("head", "tail"):
+        value, status = evaluate(ast["expression"], environment)
+        if status is not None:
+            return value, status
+        if type(value) not in (list, str):
+            raise TypeError(f"{ast['tag']} argument must be a list or string")
+        if ast["tag"] == "head":
+            if len(value) == 0:
+                # There is no first element to return, and Vertex has no
+                # null to stand in for one. A guard on length is the
+                # caller's job.
+                kind = "list" if type(value) is list else "string"
+                raise IndexError(f"head of an empty {kind}")
+            return value[0], None
+        # tail: a new list or string, even when the argument is empty --
+        # value[1:] already agrees with Python's own slicing here, so no
+        # extra guard is added. The elements of a list are shared with
+        # the original, as in any other copy.
+        return value[1:], None
+
+    if ast["tag"] == "slice":
+        # Evaluate the sequence, then start, then end, checking status after
+        # each, before any type or range check.
+        value, status = evaluate(ast["expression"], environment)
+        if status is not None:
+            return value, status
+        start, status = evaluate(ast["start"], environment)
+        if status is not None:
+            return start, status
+        end, status = evaluate(ast["end"], environment)
+        if status is not None:
+            return end, status
+        if type(value) not in (list, str):
+            raise TypeError("slice argument must be a list or string")
+        start = require_slice_bound(start, value)
+        end = require_slice_bound(end, value)
+        if start &gt; end:
+            raise IndexError("Slice start must not be greater than end")
+        return value[start:end], None
 
     # ===== CHAPTER 3: dedicated input expression =====
     if ast["tag"] == "input":
@@ -353,7 +461,7 @@ def evaluate(ast, environment):
                 return index, status
             if type(base) is not list:
                 raise TypeError("Indexed assignment requires a list")
-            key = require_list_index(index, base)
+            key = require_index(index, base)
             destination = base
         else:
             raise ValueError("Assignment requires an identifier or indexed destination")
@@ -738,6 +846,34 @@ combined[0] = 99;
 print(first);
 print(combined);
 
+// slice, head, and tail work on lists and strings. A slice includes its
+// start position and stops before its end position. Each result is new;
+// the original is untouched.
+letters = [10, 20, 30, 40];
+print(slice(letters, 1, 3));
+print(head(letters));
+print(tail(letters));
+word = "hello";
+print(slice(word, 1, 3));
+print(head(word));
+print(tail(word));
+print(length(word));
+
+// A string reads by index the way a list does; the result is a
+// one-character string. A string cannot be assigned into, only replaced.
+print(word[1]);
+word = "j" + tail(word);
+print(word);
+
+// head rejects an empty list or string, so a loop checks length first.
+remaining = [3, 1, 2];
+backwards = [];
+while (length(remaining) &gt; 0) {
+    backwards = [head(remaining)] + backwards;
+    remaining = tail(remaining);
+};
+print(backwards);
+
 // exit still propagates through every new position: a list element, an
 // index base, an index, and an indexed assignment's right-hand value.
 // Inject it into the value this time; the list must stay unmutated.
@@ -806,7 +942,8 @@ from tokenizer import tokenize
 #   factor ::= &lt;number&gt; | &lt;string&gt; | &lt;identifier&gt; | "true" | "false" | input_expression
 #          | number_expression | string_expression | boolean_expression
 #          | type_expression | exit_expression | list_expression
-#          | length_expression | "(" expression ")"
+#          | length_expression | slice_expression | head_expression
+#          | tail_expression | "(" expression ")"
 #   exit_expression ::= "exit" "(" [ expression ] ")"
 #   input_expression ::= "input" "(" [ expression ] ")"
 #   number_expression ::= "number" "(" expression ")"
@@ -814,9 +951,14 @@ from tokenizer import tokenize
 #   boolean_expression ::= "boolean" "(" expression ")"
 #   type_expression ::= "type" "(" expression ")"
 #
-#   ===== CHAPTER 9: list literals and length =====
+#   ===== CHAPTER 9: list literals, length, slice, head, and tail =====
 #   list_expression ::= "[" [ expression { "," expression } ] "]"
 #   length_expression ::= "length" "(" expression ")"
+#   slice_expression ::= "slice" "(" expression "," expression "," expression ")"
+#   head_expression ::= "head" "(" expression ")"
+#   tail_expression ::= "tail" "(" expression ")"
+#   slice, head, and tail are dedicated forms, like length: the syntax looks
+#   like a call, but no general function call exists yet.
 #
 # input has function-shaped syntax, but this chapter does not implement
 # general function calls, parameters, or function values.
@@ -867,7 +1009,7 @@ def parse_factor(tokens):
     # checking the argument's runtime type belongs to the evaluator.
     operations = {"number_conversion": "number", "string_conversion": "string",
                   "boolean_conversion": "boolean", "type_query": "type",
-                  "length": "length"}
+                  "length": "length", "head": "head", "tail": "tail"}
     if token["tag"] in operations:
         name = operations[token["tag"]]
         tokens = require(tokens[1:], "(", f"Expected '(' after '{name}'")
@@ -878,6 +1020,10 @@ def parse_factor(tokens):
     # ===== CHAPTER 9: list literal =====
     if token["tag"] == "[":
         return parse_list_expression(tokens)
+
+    # ===== CHAPTER 9: slice takes three expressions =====
+    if token["tag"] == "slice":
+        return parse_slice_expression(tokens)
 
     if token["tag"] == "(":
         # Parentheses restart at the lowest-precedence rule, allowing a complete
@@ -902,6 +1048,22 @@ def parse_list_expression(tokens):
             items.append(item)
     tokens = require(tokens, "]", "Expected ']' to close list literal")
     return {"tag": "list", "items": items}, tokens
+
+
+def parse_slice_expression(tokens):
+    # ===== CHAPTER 9 =====
+    # slice_expression ::= "slice" "(" expression "," expression "," expression ")"
+    # The three expressions are the sequence, the start position, and the end
+    # position. Checking their types and ranges belongs to the evaluator.
+    tokens = require(tokens, "slice", "Expected 'slice'")
+    tokens = require(tokens, "(", "Expected '(' after 'slice'")
+    sequence, tokens = parse_expression(tokens)
+    tokens = require(tokens, ",", "Expected ',' after slice sequence")
+    start, tokens = parse_expression(tokens)
+    tokens = require(tokens, ",", "Expected ',' after slice start")
+    end, tokens = parse_expression(tokens)
+    tokens = require(tokens, ")", "Expected ')' after slice end")
+    return {"tag": "slice", "expression": sequence, "start": start, "end": end}, tokens
 
 
 def parse_complex_suffixes(node, tokens):
@@ -1313,6 +1475,50 @@ def test_parse_length_expression():
     expect_syntax_error("x=length(items", "Expected ')'")
 
 
+def test_parse_slice_head_tail_expressions():
+    # ===== CHAPTER 9 TESTS =====
+    print("test parse slice, head, and tail expressions")
+    ast, rest = parse_factor(tokenize("slice(items, 1, 3)"))
+    assert ast == {"tag": "slice",
+                   "expression": {"tag": "identifier", "value": "items"},
+                   "start": {"tag": "number", "value": 1},
+                   "end": {"tag": "number", "value": 3}}
+    assert rest[0]["tag"] is None
+
+    ast, rest = parse_factor(tokenize("head(items)"))
+    assert ast == {"tag": "head",
+                   "expression": {"tag": "identifier", "value": "items"}}
+    assert rest[0]["tag"] is None
+
+    ast, rest = parse_factor(tokenize("tail(items)"))
+    assert ast == {"tag": "tail",
+                   "expression": {"tag": "identifier", "value": "items"}}
+    assert rest[0]["tag"] is None
+
+    # Each result is a factor, so it can be indexed or nested immediately.
+    ast, rest = parse_complex_expression(tokenize("tail(items)[0]"))
+    assert ast == {"tag": "complex",
+                   "base": {"tag": "tail",
+                            "expression": {"tag": "identifier", "value": "items"}},
+                   "index": {"tag": "number", "value": 0}}
+    assert rest[0]["tag"] is None
+
+    ast, rest = parse_factor(tokenize("slice(tail(items), 0, length(items))"))
+    assert ast["tag"] == "slice"
+    assert ast["expression"]["tag"] == "tail"
+    assert ast["end"]["tag"] == "length"
+
+    expect_syntax_error("x=slice items, 1, 3)", "Expected '('")
+    expect_syntax_error("x=slice(items 1, 3)", "Expected ','")
+    expect_syntax_error("x=slice(items, 1 3)", "Expected ','")
+    expect_syntax_error("x=slice(items, 1)", "Expected ','")
+    expect_syntax_error("x=slice(items, 1, 3", "Expected ')'")
+    expect_syntax_error("x=head items)", "Expected '('")
+    expect_syntax_error("x=head(items", "Expected ')'")
+    expect_syntax_error("x=tail items)", "Expected '('")
+    expect_syntax_error("x=tail(items", "Expected ')'")
+
+
 def test_parse_term_and_expression():
     print("test parse term and expression")
     ast, rest = parse_expression(tokenize("3*4+5-6"))
@@ -1553,6 +1759,7 @@ if __name__ == "__main__":
     test_parse_list_expression()
     test_parse_complex_expression_indexing()
     test_parse_length_expression()
+    test_parse_slice_head_tail_expressions()
     test_parse_term_and_expression()
     test_parse_print_statement()
     test_parse_assignment_statement()
@@ -1593,7 +1800,17 @@ expected_output='Chapter 9: Lists and Indexing
 true
 false
 [1, 2]
-[99, 2, 3, 4]'
+[99, 2, 3, 4]
+[20, 30]
+10
+[20, 30, 40]
+el
+h
+ello
+5
+e
+jello
+[2, 1, 3]'
 expected_status=3
 expected_stderr=''
 
@@ -2522,6 +2739,23 @@ class ListTests(unittest.TestCase):
         self.assertEqual(env['b'], [1, 2])
         self.assertIsNot(env['a'], env['b'])
 
+    def test_indexed_assignment_mutates_a_list_in_an_enclosing_environment(self):
+        # Indexed assignment resolves its target by reading it, and reads
+        # have searched outward through $PARENT since Chapter 6. No new
+        # code made this possible; a child environment is enough to show it.
+        parent = {'a': [1, 2]}
+        child = {'$PARENT': parent}
+        self.run_source('a[0] = 99', child)
+        self.assertEqual(parent['a'], [99, 2])
+        self.assertNotIn('a', child)
+
+    def test_plain_rebinding_shadows_instead_of_reaching_an_enclosing_environment(self):
+        parent = {'a': [1, 2]}
+        child = {'$PARENT': parent}
+        self.run_source('a = [9, 9]', child)
+        self.assertEqual(parent['a'], [1, 2])
+        self.assertEqual(child['a'], [9, 9])
+
     def test_concatenation_produces_an_independent_list(self):
         _, env = self.run_source('a=[1, 2]; b=[3, 4]; c=a+b; c[0]=99')
         self.assertEqual(env['a'], [1, 2])
@@ -2569,6 +2803,55 @@ class ListTests(unittest.TestCase):
             with self.subTest(operator=operator):
                 with self.assertRaises(TypeError):
                     self.run_source(f'x=[1] {operator} [2]')
+
+    # ===== Cyclic lists =====
+    # Indexed assignment can make a list contain itself (a[0] = a). Chapter
+    # 9 allows this rather than detecting and rejecting it; equality and
+    # printing must still terminate instead of recursing forever.
+
+    def test_self_referential_list_equals_itself(self):
+        _, env = self.run_source('a=[0]; a[0]=a; x = a == a')
+        self.assertEqual(env['x'], True)
+
+    def test_self_referential_list_prints_with_ellipsis(self):
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.run_source('a=[0]; a[0]=a; print(a)')
+        self.assertEqual(output.getvalue(), '[[...]]\n')
+
+    def test_indirect_two_list_cycle_prints_with_ellipsis(self):
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.run_source('a=[0]; b=[a]; a[0]=b; print(a)')
+        self.assertEqual(output.getvalue(), '[[[...]]]\n')
+
+    def test_two_distinct_equal_cycles_compare_equal(self):
+        # Identity alone only covers comparing a cycle to itself; two
+        # separately built cycles need pair tracking, not just identity.
+        _, env = self.run_source('a=[1,0]; a[1]=a; b=[1,0]; b[1]=b; x = a == b')
+        self.assertEqual(env['x'], True)
+
+    def test_two_distinct_cycles_with_different_payload_compare_unequal(self):
+        _, env = self.run_source('a=[1,0]; a[1]=a; b=[2,0]; b[1]=b; x = a == b')
+        self.assertEqual(env['x'], False)
+
+    def test_two_distinct_cycles_with_different_length_compare_unequal(self):
+        _, env = self.run_source('a=[1,0]; a[1]=a; b=[1,0,0]; b[1]=b; x = a == b')
+        self.assertEqual(env['x'], False)
+
+    def test_shared_non_cyclic_sublist_still_prints_in_full(self):
+        # A regression guard: the same sublist appearing twice as a sibling
+        # is sharing, not a cycle, and must print in full both times.
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.run_source('x=[1, 2]; a=[x, x]; print(a)')
+        self.assertEqual(output.getvalue(), '[[1, 2], [1, 2]]\n')
 
     # ===== length() =====
 
@@ -2659,6 +2942,18 @@ class ListTests(unittest.TestCase):
         result, env = self.run_source('a=[1, 2, 3]; a[exit(6)]=exit(999)')
         self.assertEqual(result, (6, 'exit'))
         self.assertEqual(env['a'], [1, 2, 3])
+
+    def test_a_side_effect_earlier_in_the_index_survives_a_later_exit(self):
+        # Resolving the target before the value protects the list itself,
+        # not every observable effect, and not the rest of the environment
+        # either: input() also updates __input, and that update is not
+        # undone. A side effect that runs before exit is reached stands.
+        with patch('builtins.input', side_effect=['42']) as fake_input:
+            result, env = self.run_source(
+                'a=[1, 2, 3]; a[number(input()) + exit(6)]=exit(999)')
+        self.assertEqual(result, (6, 'exit'))
+        self.assertEqual(env['a'], [1, 2, 3])
+        fake_input.assert_called_once()
 
     def test_exit_from_a_chained_assignment_base_wins_over_the_value(self):
         result, env = self.run_source('m=[[1, 2], [3, 4]]; m[exit(7)][0]=exit(999)')
@@ -2924,6 +3219,526 @@ class LoopTests(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 </code></pre></section>
+<section class="source-file" id="file-746573745f70726163746963655f616e73776572732e7079" aria-labelledby="title-file-746573745f70726163746963655f616e73776572732e7079" hidden><header class="file-header"><h2 id="title-file-746573745f70726163746963655f616e73776572732e7079">test_practice_answers.py</h2></header><pre><code>"""Runs the code in the chapter's "Answers to the Practice Questions".
+
+The tests read the chapter text, so the printed answers cannot drift from
+what the evaluator actually does.
+"""
+import contextlib
+import io
+import os
+import re
+import unittest
+
+import evaluator
+from parser import parse
+from tokenizer import tokenize
+
+CHAPTER = os.path.join(os.path.dirname(__file__), "..",
+                       "chapter-09-lists-and-indexing.md")
+
+
+def answer_blocks():
+    """Return the vertex code blocks of each numbered answer, in order."""
+    with open(CHAPTER) as chapter_file:
+        text = chapter_file.read()
+    section = text.split("## Answers to the Practice Questions", 1)[1]
+    answers = re.split(r"(?m)^(?=\d+\. )", section)[1:]
+    return [re.findall(r"```vertex\n(.*?)```", a, re.S) for a in answers]
+
+
+def run(source):
+    """Run source; return (printed lines, final environment)."""
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        _, environment = evaluator.evaluate_source(source, {})
+    return out.getvalue().split("\n")[:-1], environment
+
+
+class PracticeAnswerTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.blocks = answer_blocks()
+
+    def test_six_answers_found(self):
+        self.assertEqual([len(b) for b in self.blocks], [1, 1, 0, 2, 1, 1])
+
+    def test_1_largest_value(self):
+        printed, _ = run(self.blocks[0][0])
+        self.assertEqual(printed, ["9"])
+
+    def test_1_largest_value_with_negatives(self):
+        source = self.blocks[0][0].replace(
+            "[3, 1, 4, 1, 5, 9, 2, 6]", "[-5, -2, -9]")
+        printed, _ = run(source)
+        self.assertEqual(printed, ["-2"])
+
+    def test_1_empty_list_is_index_error(self):
+        source = self.blocks[0][0].replace(
+            "[3, 1, 4, 1, 5, 9, 2, 6]", "[]")
+        with self.assertRaises(IndexError):
+            run(source)
+
+    def test_2_alias_sees_every_update(self):
+        printed, _ = run(self.blocks[1][0])
+        self.assertEqual(printed, ["[75, 85, 95]"])
+
+    def test_3_exit_after_index_check_leaves_grid_unchanged(self):
+        environment = {}
+        ast = parse(tokenize(
+            "grid = [[1, 2], [3, 4]]; grid[0][1] = exit(4);"))
+        result, status = evaluator.evaluate(ast, environment)
+        self.assertEqual((result, status), (4, "exit"))
+        self.assertEqual(environment["grid"], [[1, 2], [3, 4]])
+
+    def test_3_bad_index_raises_before_exit_runs(self):
+        with self.assertRaises(IndexError):
+            run("a = [1]; a[5] = exit(4);")
+
+    def test_4_list_copy_is_new(self):
+        printed, _ = run(self.blocks[3][0] +
+                         "\ncopy[0] = 99;\nprint(original);\nprint(copy);")
+        self.assertEqual(printed, ["[1, 2, 3]", "[1, 2, 3]", "[99, 2, 3]"])
+
+    def test_4_string_copy(self):
+        printed, _ = run(self.blocks[3][1])
+        self.assertEqual(printed, ["hello"])
+
+    def test_5_even_length_joins_back(self):
+        printed, _ = run(self.blocks[4][0])
+        self.assertEqual(printed, ["[1, 2, 3, 4]"])
+
+    def test_5_odd_length_is_type_error(self):
+        source = self.blocks[4][0].replace("[1, 2, 3, 4]", "[1, 2, 3, 4, 5]")
+        with self.assertRaises(TypeError):
+            run(source)
+
+    def test_6_reversal(self):
+        printed, _ = run(self.blocks[5][0])
+        self.assertEqual(printed, ["desserts"])
+
+    def test_6_assignment_into_string_is_type_error(self):
+        with self.assertRaises(TypeError):
+            run('word = "stressed"; word[0] = "S";')
+
+    def test_6_rebuild_gives_stressed(self):
+        printed, _ = run('word = "stressed"; word = "S" + tail(word); '
+                         'print(word);')
+        self.assertEqual(printed, ["Stressed"])
+
+
+if __name__ == "__main__":
+    unittest.main()
+</code></pre></section>
+<section class="source-file" id="file-746573745f736c6963655f686561645f7461696c2e7079" aria-labelledby="title-file-746573745f736c6963655f686561645f7461696c2e7079" hidden><header class="file-header"><h2 id="title-file-746573745f736c6963655f686561645f7461696c2e7079">test_slice_head_tail.py</h2></header><pre><code>import unittest
+from unittest.mock import patch
+
+import evaluator
+
+
+class SliceHeadTailTests(unittest.TestCase):
+    def run_source(self, source, environment=None):
+        if environment is None:
+            environment = {}
+        result, environment = evaluator.evaluate_source(source, environment)
+        return result, environment
+
+    # ===== slice: lists =====
+
+    def test_slice_of_a_list_is_half_open(self):
+        _, env = self.run_source('x=slice([10, 20, 30, 40], 1, 3)')
+        self.assertEqual(env['x'], [20, 30])
+
+    def test_slice_of_the_whole_list(self):
+        _, env = self.run_source('a=[1, 2, 3]; x=slice(a, 0, length(a))')
+        self.assertEqual(env['x'], [1, 2, 3])
+
+    def test_slice_with_equal_bounds_is_empty(self):
+        # y: start at the length is legal too, same as end. It only marks
+        # where the slice begins, not a seventh element that doesn't exist.
+        _, env = self.run_source('x=slice([1, 2, 3], 1, 1); y=slice([1, 2, 3], 3, 3)')
+        self.assertEqual(env['x'], [])
+        self.assertEqual(env['y'], [])
+
+    def test_slice_of_an_empty_list(self):
+        _, env = self.run_source('x=slice([], 0, 0)')
+        self.assertEqual(env['x'], [])
+
+    def test_slice_builds_a_new_list(self):
+        _, env = self.run_source('a=[1, 2, 3]; b=slice(a, 0, 3); b[0]=99')
+        self.assertEqual(env['a'], [1, 2, 3])
+        self.assertEqual(env['b'], [99, 2, 3])
+        self.assertIsNot(env['a'], env['b'])
+
+    def test_slice_shares_nested_elements_with_the_original(self):
+        _, env = self.run_source('a=[[1], [2]]; b=slice(a, 0, 1); b[0][0]=99')
+        self.assertEqual(env['a'], [[99], [2]])
+
+    # ===== slice: strings =====
+
+    def test_slice_of_a_string(self):
+        _, env = self.run_source('x=slice("hello", 1, 3)')
+        self.assertEqual(env['x'], 'el')
+
+    def test_slice_of_a_string_with_equal_bounds_is_empty(self):
+        _, env = self.run_source('x=slice("hello", 2, 2)')
+        self.assertEqual(env['x'], '')
+
+    def test_slice_of_a_whole_string(self):
+        _, env = self.run_source('s="hello"; x=slice(s, 0, length(s))')
+        self.assertEqual(env['x'], 'hello')
+
+    # ===== slice: bounds and types =====
+
+    def test_whole_number_float_bounds_accepted(self):
+        _, env = self.run_source('x=slice([1, 2, 3], 1.0, 3.0)')
+        self.assertEqual(env['x'], [2, 3])
+
+    def test_fractional_bound_rejected(self):
+        for source in ('slice([1, 2, 3], 0.5, 2)', 'slice([1, 2, 3], 0, 1.5)'):
+            with self.subTest(source=source):
+                with self.assertRaises(TypeError):
+                    self.run_source('x=' + source)
+
+    def test_boolean_bound_rejected(self):
+        for source in ('slice([1, 2, 3], true, 2)', 'slice([1, 2, 3], 0, true)'):
+            with self.subTest(source=source):
+                with self.assertRaises(TypeError):
+                    self.run_source('x=' + source)
+
+    def test_string_bound_rejected(self):
+        with self.assertRaises(TypeError):
+            self.run_source('x=slice([1, 2, 3], "0", 2)')
+
+    def test_negative_bound_rejected(self):
+        for source in ('slice([1, 2, 3], -1, 2)', 'slice([1, 2, 3], 0, -1)'):
+            with self.subTest(source=source):
+                with self.assertRaises(IndexError):
+                    self.run_source('x=' + source)
+
+    def test_bound_past_the_length_rejected_not_clamped(self):
+        for source in ('slice([1, 2, 3], 0, 4)', 'slice([1, 2, 3], 4, 4)',
+                       'slice("abc", 0, 4)'):
+            with self.subTest(source=source):
+                with self.assertRaises(IndexError):
+                    self.run_source('x=' + source)
+
+    def test_start_after_end_rejected(self):
+        with self.assertRaises(IndexError):
+            self.run_source('x=slice([1, 2, 3], 2, 1)')
+
+    def test_slice_requires_a_list_or_string(self):
+        for source in ('slice(5, 0, 0)', 'slice(true, 0, 0)'):
+            with self.subTest(source=source):
+                with self.assertRaises(TypeError):
+                    self.run_source('x=' + source)
+
+    # ===== head =====
+
+    def test_head_of_a_list(self):
+        _, env = self.run_source('x=head([10, 20, 30])')
+        self.assertEqual(env['x'], 10)
+
+    def test_head_of_a_string(self):
+        _, env = self.run_source('x=head("hello")')
+        self.assertEqual(env['x'], 'h')
+
+    def test_head_of_a_single_element(self):
+        _, env = self.run_source('x=head([7]); y=head("z")')
+        self.assertEqual(env['x'], 7)
+        self.assertEqual(env['y'], 'z')
+
+    def test_head_returns_the_element_itself(self):
+        _, env = self.run_source('a=[[1], [2]]; h=head(a); h[0]=99')
+        self.assertEqual(env['a'], [[99], [2]])
+
+    def test_head_of_an_empty_list_or_string_rejected(self):
+        for source in ('head([])', 'head("")'):
+            with self.subTest(source=source):
+                with self.assertRaises(IndexError):
+                    self.run_source('x=' + source)
+
+    def test_head_requires_a_list_or_string(self):
+        with self.assertRaises(TypeError):
+            self.run_source('x=head(5)')
+
+    # ===== tail =====
+
+    def test_tail_of_a_list(self):
+        _, env = self.run_source('x=tail([10, 20, 30])')
+        self.assertEqual(env['x'], [20, 30])
+
+    def test_tail_of_a_string(self):
+        _, env = self.run_source('x=tail("hello")')
+        self.assertEqual(env['x'], 'ello')
+
+    def test_tail_of_a_single_element_is_empty(self):
+        _, env = self.run_source('x=tail([5]); y=tail("a")')
+        self.assertEqual(env['x'], [])
+        self.assertEqual(env['y'], '')
+
+    def test_tail_builds_a_new_list_and_leaves_the_original(self):
+        _, env = self.run_source('a=[1, 2, 3]; b=tail(a); b[0]=99')
+        self.assertEqual(env['a'], [1, 2, 3])
+        self.assertEqual(env['b'], [99, 3])
+        self.assertIsNot(env['a'], env['b'])
+
+    def test_tail_of_an_empty_list_or_string_is_empty(self):
+        # Unlike head, tail of an empty value is not rejected: [] already
+        # exists, and value[1:] agrees with Python's own slicing here.
+        _, env = self.run_source('x=tail([]); y=tail("")')
+        self.assertEqual(env['x'], [])
+        self.assertEqual(env['y'], '')
+
+    def test_tail_requires_a_list_or_string(self):
+        with self.assertRaises(TypeError):
+            self.run_source('x=tail(5)')
+
+    # ===== length of a string =====
+
+    def test_length_of_a_string(self):
+        _, env = self.run_source('x=length("abc"); y=length("")')
+        self.assertEqual(env['x'], 3)
+        self.assertEqual(env['y'], 0)
+
+    def test_length_still_rejects_other_types(self):
+        for source in ('length(5)', 'length(true)'):
+            with self.subTest(source=source):
+                with self.assertRaises(TypeError):
+                    self.run_source('x=' + source)
+
+    # ===== Results compose =====
+
+    def test_head_and_tail_rebuild_the_list_with_plus(self):
+        _, env = self.run_source('a=[1, 2, 3]; b=[head(a)] + tail(a)')
+        self.assertEqual(env['b'], [1, 2, 3])
+        self.assertIsNot(env['a'], env['b'])
+
+    def test_head_and_tail_rebuild_a_string_with_plus(self):
+        _, env = self.run_source('s="hello"; t=head(s) + tail(s)')
+        self.assertEqual(env['t'], 'hello')
+
+    def test_guarded_loop_reverses_a_list(self):
+        source = '''
+            t=[1, 2, 3, 4];
+            r=[];
+            while (length(t) &gt; 0) {
+                r=[head(t)] + r;
+                t=tail(t);
+            };
+        '''
+        _, env = self.run_source(source)
+        self.assertEqual(env['r'], [4, 3, 2, 1])
+        self.assertEqual(env['t'], [])
+
+    def test_guarded_loop_reverses_a_string(self):
+        source = '''
+            s="abc";
+            r="";
+            while (length(s) &gt; 0) {
+                r=head(s) + r;
+                s=tail(s);
+            };
+        '''
+        _, env = self.run_source(source)
+        self.assertEqual(env['r'], 'cba')
+
+    def test_slice_pieces_rejoin_with_plus(self):
+        source = '''
+            a=[1, 2, 3, 4, 5];
+            b=slice(a, 0, 2) + slice(a, 2, length(a));
+        '''
+        _, env = self.run_source(source)
+        self.assertEqual(env['b'], [1, 2, 3, 4, 5])
+
+    def test_nested_slice_head_tail(self):
+        _, env = self.run_source('x=head(tail(slice([1, 2, 3, 4], 1, 4)))')
+        self.assertEqual(env['x'], 3)
+
+    def test_results_can_be_indexed_and_typed(self):
+        _, env = self.run_source('x=tail([1, 2, 3])[0]; y=type(head("ab")); z=type(tail([1]))')
+        self.assertEqual(env['x'], 2)
+        self.assertEqual(env['y'], 'string')
+        self.assertEqual(env['z'], 'list')
+
+    # ===== Keywords =====
+
+    def test_slice_head_and_tail_are_no_longer_usable_as_names(self):
+        for name in ('slice', 'head', 'tail'):
+            with self.subTest(name=name):
+                with self.assertRaises(SyntaxError):
+                    self.run_source(f'{name}=1')
+                with self.assertRaises(SyntaxError):
+                    self.run_source(f'x={name}')
+
+    def test_similar_names_remain_ordinary_identifiers(self):
+        _, env = self.run_source('sliced=1; header=2; tailor=3')
+        self.assertEqual(env['sliced'], 1)
+        self.assertEqual(env['header'], 2)
+        self.assertEqual(env['tailor'], 3)
+
+    # ===== Status propagation and evaluation order =====
+
+    def test_exit_from_every_position_propagates(self):
+        sources = [
+            'x=slice(exit(7), input(), input())',
+            'x=slice([1, 2], exit(7), input())',
+            'x=slice([1, 2], 0, exit(7))',
+            'x=head(exit(7))',
+            'x=tail(exit(7))',
+        ]
+        for source in sources:
+            with self.subTest(source=source):
+                with patch('builtins.input') as fake_input:
+                    result, env = self.run_source(source)
+                self.assertEqual(result, (7, 'exit'))
+                self.assertNotIn('x', env)
+                fake_input.assert_not_called()
+
+    def test_slice_evaluates_sequence_then_start_then_end(self):
+        with patch('builtins.input', side_effect=['hello', '1', '3']) as fake_input:
+            _, env = self.run_source('x=slice(input(), number(input()), number(input()))')
+        self.assertEqual(env['x'], 'el')
+        self.assertEqual(fake_input.call_count, 3)
+
+    def test_slice_evaluates_all_arguments_before_checking_types(self):
+        # Every argument is evaluated, in order, before any argument is
+        # checked, so an earlier type error does not hide a later exit.
+        result, env = self.run_source('x=slice(5, 0, exit(4))')
+        self.assertEqual(result, (4, 'exit'))
+        self.assertNotIn('x', env)
+
+
+if __name__ == '__main__':
+    unittest.main()
+</code></pre></section>
+<section class="source-file" id="file-746573745f737472696e675f696e646578696e672e7079" aria-labelledby="title-file-746573745f737472696e675f696e646578696e672e7079" hidden><header class="file-header"><h2 id="title-file-746573745f737472696e675f696e646578696e672e7079">test_string_indexing.py</h2></header><pre><code>import unittest
+from unittest.mock import patch
+
+import evaluator
+
+
+class StringIndexingTests(unittest.TestCase):
+    def run_source(self, source, environment=None):
+        if environment is None:
+            environment = {}
+        result, environment = evaluator.evaluate_source(source, environment)
+        return result, environment
+
+    # ===== Reading a character =====
+
+    def test_index_reads_a_one_character_string(self):
+        _, env = self.run_source('s="hello"; x=s[1]; y=type(s[1])')
+        self.assertEqual(env['x'], 'e')
+        self.assertEqual(env['y'], 'string')
+
+    def test_first_and_last_characters(self):
+        _, env = self.run_source('s="hello"; a=s[0]; b=s[length(s) - 1]')
+        self.assertEqual(env['a'], 'h')
+        self.assertEqual(env['b'], 'o')
+
+    def test_string_literal_can_be_indexed_directly(self):
+        _, env = self.run_source('x="hello"[1]')
+        self.assertEqual(env['x'], 'e')
+
+    def test_index_agrees_with_head_and_slice(self):
+        _, env = self.run_source(
+            's="hello"; a=s[0] == head(s); b=s[2] == head(slice(s, 2, 3))')
+        self.assertEqual(env['a'], True)
+        self.assertEqual(env['b'], True)
+
+    def test_whole_number_float_index_accepted(self):
+        _, env = self.run_source('x="hello"[1.0]')
+        self.assertEqual(env['x'], 'e')
+
+    def test_string_inside_a_list_can_be_indexed_in_a_chain(self):
+        _, env = self.run_source('names=["ab", "cd"]; x=names[1][0]')
+        self.assertEqual(env['x'], 'c')
+
+    # ===== Rejected indices: the same rules as for a list =====
+
+    def test_fractional_index_rejected(self):
+        with self.assertRaises(TypeError):
+            self.run_source('x="hello"[1.5]')
+
+    def test_boolean_index_rejected(self):
+        with self.assertRaises(TypeError):
+            self.run_source('x="hello"[true]')
+
+    def test_string_index_rejected(self):
+        with self.assertRaises(TypeError):
+            self.run_source('x="hello"["1"]')
+
+    def test_negative_index_rejected(self):
+        with self.assertRaises(IndexError):
+            self.run_source('x="hello"[-1]')
+
+    def test_index_equal_to_the_length_rejected(self):
+        with self.assertRaises(IndexError):
+            self.run_source('x="hello"[5]')
+
+    def test_every_index_of_an_empty_string_rejected(self):
+        with self.assertRaises(IndexError):
+            self.run_source('x=""[0]')
+
+    def test_indexing_other_values_still_rejected(self):
+        for source in ('x=5[0]', 'x=true[0]'):
+            with self.subTest(source=source):
+                with self.assertRaises(TypeError):
+                    self.run_source(source)
+
+    # ===== A string cannot be assigned into =====
+
+    def test_assignment_into_a_string_rejected(self):
+        with self.assertRaises(TypeError):
+            self.run_source('s="hello"; s[0]="j"')
+
+    def test_failed_assignment_leaves_the_string_unchanged(self):
+        environment = {}
+        try:
+            self.run_source('s="hello"; s[0]="j"', environment)
+        except TypeError:
+            pass
+        self.assertEqual(environment['s'], 'hello')
+
+    def test_assignment_into_a_string_held_by_a_list_rejected(self):
+        with self.assertRaises(TypeError):
+            self.run_source('names=["ab"]; names[0][1]="x"')
+
+    def test_replacing_a_list_element_with_a_new_string_still_works(self):
+        _, env = self.run_source('names=["ab"]; names[0]="xy"')
+        self.assertEqual(env['names'], ['xy'])
+
+    # ===== Traversal =====
+
+    def test_traverse_a_string_with_while_and_length(self):
+        source = '''
+            s="abc";
+            r="";
+            i=0;
+            while (i &lt; length(s)) {
+                r=s[i] + r;
+                i=i + 1;
+            };
+        '''
+        _, env = self.run_source(source)
+        self.assertEqual(env['r'], 'cba')
+
+    # ===== Status propagation =====
+
+    def test_exit_from_the_base_or_the_index_propagates(self):
+        for source in ('x=exit(7)[input()]', 'x="hello"[exit(7)]'):
+            with self.subTest(source=source):
+                with patch('builtins.input') as fake_input:
+                    result, env = self.run_source(source)
+                self.assertEqual(result, (7, 'exit'))
+                self.assertNotIn('x', env)
+                fake_input.assert_not_called()
+
+
+if __name__ == '__main__':
+    unittest.main()
+</code></pre></section>
 <section class="source-file" id="file-746573745f737472696e675f6f72646572696e672e7079" aria-labelledby="title-file-746573745f737472696e675f6f72646572696e672e7079" hidden><header class="file-header"><h2 id="title-file-746573745f737472696e675f6f72646572696e672e7079">test_string_ordering.py</h2></header><pre><code>import operator
 import unittest
 from unittest.mock import patch
@@ -3043,8 +3858,13 @@ patterns = [
     (r"boolean\b", "boolean_conversion"),
     (r"type\b", "type_query"),
 
-    # ===== CHAPTER 9: length is a dedicated expression, not a function call =====
+    # ===== CHAPTER 9: length, slice, head, and tail are dedicated expressions =====
+    # They are written like calls, but they are not function calls: this
+    # chapter has no general function syntax.
     (r"length\b", "length"),
+    (r"slice\b", "slice"),
+    (r"head\b", "head"),
+    (r"tail\b", "tail"),
 
     (r"[a-zA-Z_][\w]*", "identifier"),
     (r".", "error"),
@@ -3255,6 +4075,25 @@ def test_lists_and_indexing():
     assert tokens[1]["value"] == "length_two"
 
 
+def test_slice_head_tail_keywords():
+    # ===== CHAPTER 9 TEST =====
+    print("test tokenize slice, head, and tail")
+    tokens = tokenize("slice(items, 1, 3) head(items) tail(items)")
+    tags = [token["tag"] for token in tokens]
+    assert tags == ["slice", "(", "identifier", ",", "number", ",", "number", ")",
+                    "head", "(", "identifier", ")",
+                    "tail", "(", "identifier", ")", None]
+
+    # Word boundaries keep longer names intact.
+    tokens = tokenize("sliced header tailor head_two")
+    tags = [token["tag"] for token in tokens]
+    assert tags == ["identifier", "identifier", "identifier", "identifier", None]
+    assert tokens[0]["value"] == "sliced"
+    assert tokens[1]["value"] == "header"
+    assert tokens[2]["value"] == "tailor"
+    assert tokens[3]["value"] == "head_two"
+
+
 def test_identifiers():
     print("test tokenize identifiers")
     tokens = tokenize("foo bar baz")
@@ -3321,6 +4160,7 @@ if __name__ == "__main__":
     test_blocks_and_conditionals()
     test_loop_keywords()
     test_lists_and_indexing()
+    test_slice_head_tail_keywords()
     test_expressions()
     test_identifiers()
     test_whitespace()

@@ -17,47 +17,107 @@ def global_environment(environment):
     return environment
 
 
-def require_list_index(index, base):
+def require_index(index, base):
     # ===== CHAPTER 9 =====
     # An index must be an integer, or a float with no fractional part:
     # 3.0 is accepted, 3.5 is not. Python treats bool as a subtype of int,
     # so it is excluded explicitly rather than by accident. No negative
     # indices, and no silent growth on assignment: both directions of
-    # out-of-range access raise the same error.
+    # out-of-range access raise the same error. The same rules apply to a
+    # list and to a string.
     if type(index) is bool or type(index) not in (int, float):
-        raise TypeError("List index must be an integer")
+        raise TypeError("Index must be an integer")
     if type(index) is float and not index.is_integer():
-        raise TypeError("List index must be an integer")
+        raise TypeError("Index must be an integer")
     index = int(index)
     if not (0 <= index < len(base)):
-        raise IndexError("List index out of range")
+        raise IndexError("Index out of range")
     return index
 
 
-def vertex_equal(left, right):
+def require_slice_bound(bound, sequence):
+    # ===== CHAPTER 9 =====
+    # A slice bound is an integer, or a float with no fractional part, as for
+    # indexing. Unlike an index, a bound may equal the length: slice(t, 0,
+    # length(t)) is the whole sequence, and the end position of a slice is
+    # not an element. No negatives and no clamping: an out-of-range bound
+    # raises the same error as an out-of-range index.
+    if type(bound) is bool or type(bound) not in (int, float):
+        raise TypeError("Slice bounds must be integers")
+    if type(bound) is float and not bound.is_integer():
+        raise TypeError("Slice bounds must be integers")
+    bound = int(bound)
+    if not (0 <= bound <= len(sequence)):
+        raise IndexError("Slice bound out of range")
+    return bound
+
+
+def vertex_equal(left, right, comparing=None):
     # ===== CHAPTER 9 =====
     # Lists compare structurally, recursively applying this same rule to
     # every element, rather than Python's own ==, which would let a
     # nested true and 1 compare equal and break the Chapter 4 rule that
     # they never do.
+    #
+    # Two extra mechanisms guard against indexed assignment making a list
+    # contain itself (a[0] = a). The identity check is the common case
+    # and the cheap one: two names for the same list are equal without
+    # looking at a single element. It is not enough on its own, though:
+    # two separately built cyclic lists (a=[0]; a[0]=a; b=[0]; b[0]=b)
+    # are never identical, so comparing them would still recurse forever
+    # without comparing is tracking which pairs are already being
+    # compared on the path from the outermost call to here. Reaching the
+    # same pair again means nothing left to compare could ever disagree,
+    # so it counts as equal and the recursion stops. comparing is a
+    # plain set, mutated with add before recursing and discard after, so
+    # each list pair costs one O(1) membership test, not a copy of the
+    # whole set at every level.
+    if left is right:
+        return True
     if type(left) is list and type(right) is list:
+        if comparing is None:
+            comparing = set()
+        pair = (id(left), id(right))
+        if pair in comparing:
+            return True
         if len(left) != len(right):
             return False
-        return all(vertex_equal(l, r) for l, r in zip(left, right))
+        comparing.add(pair)
+        try:
+            return all(vertex_equal(l, r, comparing) for l, r in zip(left, right))
+        finally:
+            comparing.discard(pair)
     numeric = type(left) in (int, float) and type(right) in (int, float)
     return (numeric or type(left) is type(right)) and left == right
 
 
-def vertex_repr(value):
+def vertex_repr(value, ancestors=None):
     # ===== CHAPTER 9 =====
     # The display form used inside a list, where a bare string needs
     # quotes to stay distinguishable from everything around it. print()
     # and string() use this for a list; a string or number printed on its
     # own still uses its plain, unquoted form.
+    #
+    # Identity alone cannot stop a cyclic list the way it does in
+    # vertex_equal: printing one still has to describe an element that
+    # is the list itself. ancestors tracks which lists are currently
+    # being printed, on the path from the outermost call down to here,
+    # the same add-before/discard-after pattern vertex_equal uses:
+    # reaching one again prints "..." instead of recursing into it
+    # again, and discarding on the way back out means two separate,
+    # non-cyclic appearances of the same list still both print in full.
     if type(value) is bool:
         return "true" if value else "false"
     if type(value) is list:
-        return "[" + ", ".join(vertex_repr(item) for item in value) + "]"
+        if ancestors is None:
+            ancestors = set()
+        if id(value) in ancestors:
+            return "[...]"
+        ancestors.add(id(value))
+        try:
+            return "[" + ", ".join(vertex_repr(item, ancestors) for item in value) + "]"
+        finally:
+            ancestors.discard(id(value))
     if type(value) is str:
         escaped = (value.replace("\\", "\\\\").replace('"', '\\"')
                    .replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r"))
@@ -174,17 +234,62 @@ def evaluate(ast, environment):
         index, status = evaluate(ast["index"], environment)
         if status is not None:
             return index, status
-        if type(base) is not list:
-            raise TypeError("Indexing requires a list")
-        return base[require_list_index(index, base)], None
+        # ===== CHAPTER 9: a string can be read by index, not assigned =====
+        # Reading a string yields a one-character string; Vertex has no
+        # separate character type. Assignment still requires a list.
+        if type(base) not in (list, str):
+            raise TypeError("Indexing requires a list or string")
+        return base[require_index(index, base)], None
 
     if ast["tag"] == "length":
         value, status = evaluate(ast["expression"], environment)
         if status is not None:
             return value, status
-        if type(value) is not list:
-            raise TypeError("length argument must be a list")
+        # Lists count elements; strings count characters.
+        if type(value) not in (list, str):
+            raise TypeError("length argument must be a list or string")
         return len(value), None
+
+    # ===== CHAPTER 9: head, tail, and slice work on lists and strings =====
+    if ast["tag"] in ("head", "tail"):
+        value, status = evaluate(ast["expression"], environment)
+        if status is not None:
+            return value, status
+        if type(value) not in (list, str):
+            raise TypeError(f"{ast['tag']} argument must be a list or string")
+        if ast["tag"] == "head":
+            if len(value) == 0:
+                # There is no first element to return, and Vertex has no
+                # null to stand in for one. A guard on length is the
+                # caller's job.
+                kind = "list" if type(value) is list else "string"
+                raise IndexError(f"head of an empty {kind}")
+            return value[0], None
+        # tail: a new list or string, even when the argument is empty --
+        # value[1:] already agrees with Python's own slicing here, so no
+        # extra guard is added. The elements of a list are shared with
+        # the original, as in any other copy.
+        return value[1:], None
+
+    if ast["tag"] == "slice":
+        # Evaluate the sequence, then start, then end, checking status after
+        # each, before any type or range check.
+        value, status = evaluate(ast["expression"], environment)
+        if status is not None:
+            return value, status
+        start, status = evaluate(ast["start"], environment)
+        if status is not None:
+            return start, status
+        end, status = evaluate(ast["end"], environment)
+        if status is not None:
+            return end, status
+        if type(value) not in (list, str):
+            raise TypeError("slice argument must be a list or string")
+        start = require_slice_bound(start, value)
+        end = require_slice_bound(end, value)
+        if start > end:
+            raise IndexError("Slice start must not be greater than end")
+        return value[start:end], None
 
     # ===== CHAPTER 3: dedicated input expression =====
     if ast["tag"] == "input":
@@ -299,7 +404,7 @@ def evaluate(ast, environment):
                 return index, status
             if type(base) is not list:
                 raise TypeError("Indexed assignment requires a list")
-            key = require_list_index(index, base)
+            key = require_index(index, base)
             destination = base
         else:
             raise ValueError("Assignment requires an identifier or indexed destination")
