@@ -35,6 +35,14 @@ class EvaluationStatusTests(unittest.TestCase):
             with self.subTest(source=source), self.assertRaises(TypeError):
                 self.expression(source)
 
+    def test_exit_code_must_fit_in_a_process_status(self):
+        # The operating system keeps only the low 8 bits: 256 would read as 0.
+        for code in (0, 255):
+            self.assertEqual(self.expression(f'exit({code})'), (code, 'exit'))
+        for source in ('exit(256)', 'exit(-1)', 'exit(1000)'):
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                self.expression(source)
+
     def test_unary_and_conversion_propagation(self):
         for source in ('-exit(7)', 'not exit(7)', 'number(exit(7))',
                        'string(exit(7))', 'boolean(exit(7))', 'type(exit(7))'):
@@ -126,6 +134,35 @@ class EvaluationStatusTests(unittest.TestCase):
             self.assertEqual(result.returncode, code)
             self.assertEqual(result.stdout, output)
             self.assertEqual(result.stderr, '')
+
+    def test_runner_reports_errors_without_traceback(self):
+        runner = Path(__file__).with_name('runner.py')
+        for source, message in [
+            ('print(1', "Syntax error: Expected ')' after print argument, "
+                        "got end of input at line 1, column 8\n"),
+            ('print(1 @ 2)', "Syntax error: Unexpected character '@' at line 1, "
+                             "column 9\n"),
+            ('print(missing)', 'Runtime error: Unknown identifier: missing\n'),
+            ('print(1/0)', 'Runtime error: division by zero\n'),
+            ('print(input())', 'Runtime error: input() found no more input to read\n'),
+            ('exit(256)', 'Runtime error: exit code must be between 0 and 255\n'),
+            ('missing-file.v', 'Cannot read missing-file.v: No such file or directory\n'),
+        ]:
+            with self.subTest(source=source):
+                result = subprocess.run([sys.executable, str(runner), source],
+                                        capture_output=True, text=True,
+                                        stdin=subprocess.DEVNULL)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, '')
+                self.assertEqual(result.stderr, message)
+
+    def test_runner_usage_goes_to_stderr(self):
+        runner = Path(__file__).with_name('runner.py')
+        result = subprocess.run([sys.executable, str(runner)],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(result.stderr, 'Usage: python runner.py <program>\n')
 
 
 if __name__ == '__main__':
