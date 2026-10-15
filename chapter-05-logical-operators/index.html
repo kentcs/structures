@@ -6,17 +6,65 @@
     <title>Chapter 5: Logical Operators</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <style>
-        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; padding: 48px 24px; }
-        .container { background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,.2); padding: 40px; max-width: 960px; width: 100%; }
-        h1 { color: #667eea; margin-bottom: 18px; font-weight: 700; font-size: 42px; line-height: 1.1; }
-        .intro { color: #444; font-size: 17px; line-height: 1.55; margin-bottom: 30px; max-width: 780px; }
-        .chapter-label { color: #764ba2; font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-        .chapter-title { white-space: nowrap; }
-        .toc-section { margin-bottom: 30px; }
-        .toc-section h2 { color: #764ba2; font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #667eea; padding-bottom: 8px; }
-        .toc-link { display: block; padding: 12px 16px; margin-bottom: 8px; background: #f8f9fa; border-left: 4px solid #667eea; text-decoration: none; color: #333; border-radius: 4px; transition: all .2s ease; }
-        .toc-link:hover { background: #e7e9ff; border-left-color: #764ba2; transform: translateX(4px); }
-        .description { color: #666; font-size: 14px; margin-top: 4px; }
+        body {
+            display: block;
+            align-items: center;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .container {
+            padding-top: 40px;
+            max-width: 75%;
+        }
+
+        h1 {
+            color: #506be7;
+            margin-bottom: 30px;
+            font-weight: bold;
+        }
+
+        .toc-section {
+            margin-bottom: 30px;
+        }
+
+        .toc-section h2 {
+            color: #667eea;
+            font-size: 18px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .toc-link {
+            display: block;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-left: 4px solid #adaeaf;
+            text-decoration: none;
+            color: #333333;
+            transition: all 0.2s ease;
+        }
+
+        .toc-link:hover {
+            background: #f9f9fa88;
+            border-left: 4px solid #adaeaf88;
+        }
+
+        .description {
+            color: #666666;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .toc-link:hover .description {
+            color: #999999;
+        }
+
+        .toc-link:hover {
+            color: #999999;
+        }
     </style>
 </head>
 <body>
