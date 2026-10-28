@@ -4,6 +4,10 @@ from unittest.mock import patch
 import evaluator
 
 
+def exit_node(value=7):
+    return {"tag": "exit", "expression": {"tag": "number", "value": value}}
+
+
 class SliceHeadTailTests(unittest.TestCase):
     def run_source(self, source, environment=None):
         if environment is None:
@@ -248,17 +252,29 @@ class SliceHeadTailTests(unittest.TestCase):
     # ===== Status propagation and evaluation order =====
 
     def test_exit_from_every_position_propagates(self):
-        sources = [
-            'x=slice(exit(7), input(), input())',
-            'x=slice([1, 2], exit(7), input())',
-            'x=slice([1, 2], 0, exit(7))',
-            'x=head(exit(7))',
-            'x=tail(exit(7))',
+        # exit can no longer sit inside a larger expression in real source;
+        # each node below is built directly to check the evaluator's own
+        # propagation independent of what the parser currently admits.
+        input_node = {"tag": "input", "prompt": None}
+        two_list = {"tag": "list", "items": [{"tag": "number", "value": 1},
+                                             {"tag": "number", "value": 2}]}
+        cases = [
+            {"tag": "slice", "expression": exit_node(), "start": input_node,
+             "end": input_node},
+            {"tag": "slice", "expression": two_list, "start": exit_node(),
+             "end": input_node},
+            {"tag": "slice", "expression": two_list,
+             "start": {"tag": "number", "value": 0}, "end": exit_node()},
+            {"tag": "head", "expression": exit_node()},
+            {"tag": "tail", "expression": exit_node()},
         ]
-        for source in sources:
-            with self.subTest(source=source):
+        for node in cases:
+            with self.subTest(tag=node["tag"]):
+                target = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+                         "expression": node}
+                env = {}
                 with patch('builtins.input') as fake_input:
-                    result, env = self.run_source(source)
+                    result = evaluator.evaluate(target, env)
                 self.assertEqual(result, (7, 'exit'))
                 self.assertNotIn('x', env)
                 fake_input.assert_not_called()
@@ -272,7 +288,12 @@ class SliceHeadTailTests(unittest.TestCase):
     def test_slice_evaluates_all_arguments_before_checking_types(self):
         # Every argument is evaluated, in order, before any argument is
         # checked, so an earlier type error does not hide a later exit.
-        result, env = self.run_source('x=slice(5, 0, exit(4))')
+        node = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+               "expression": {"tag": "slice", "expression": {"tag": "number", "value": 5},
+                             "start": {"tag": "number", "value": 0},
+                             "end": exit_node(4)}}
+        env = {}
+        result = evaluator.evaluate(node, env)
         self.assertEqual(result, (4, 'exit'))
         self.assertNotIn('x', env)
 

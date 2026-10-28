@@ -83,9 +83,10 @@ while (length(remaining) > 0) {
 };
 print(backwards);
 
-// exit still propagates through every new position: a list element, an
-// index base, an index, and an indexed assignment's right-hand value.
-// Inject it into the value this time; the list must stay unmutated.
+// exit still propagates from every position the evaluator checks -- a list
+// element, an index base, an index, or an indexed assignment's value --
+// though none of those can be shown nested in source anymore: exit cannot
+// sit inside a larger expression, only stand alone as a statement.
 guard = [1, 2, 3];
-guard[0] = exit(3);
+exit(3);
 print("This statement must not run");

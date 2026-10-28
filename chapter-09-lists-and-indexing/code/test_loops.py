@@ -84,7 +84,17 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(env['i'], 1)
 
     def test_exit_from_condition_propagates(self):
-        result, env = self.run_source('while (boolean(exit(9))) { x=1 }')
+        # exit cannot sit inside the condition's source text, since it
+        # cannot nest inside any expression; the node is built directly to
+        # check the evaluator's own handling.
+        body = parse(tokenize('x=1'))["statements"]
+        node = {"tag": "while",
+               "condition": {"tag": "boolean_conversion",
+                             "expression": {"tag": "exit",
+                                           "expression": {"tag": "number", "value": 9}}},
+               "body": body}
+        env = {}
+        result = evaluator.evaluate(node, env)
         self.assertEqual(result, (9, 'exit'))
         self.assertNotIn('x', env)
 

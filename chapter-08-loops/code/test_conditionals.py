@@ -62,8 +62,16 @@ class ConditionalTests(unittest.TestCase):
     def test_exit_in_condition_skips_both_branches(self):
         # An exit found while evaluating the condition propagates immediately:
         # it is never checked against the boolean requirement, and neither
-        # branch runs.
-        result, env = self.run_source('if (exit(7)) { x=1 } else { x=2 }')
+        # branch runs. exit cannot sit inside the condition's source text,
+        # since it cannot nest inside any expression; the node is built
+        # directly to check the evaluator's own handling.
+        then_block = parse(tokenize('x=1'))["statements"]
+        else_block = parse(tokenize('x=2'))["statements"]
+        node = {"tag": "if",
+               "condition": {"tag": "exit", "expression": {"tag": "number", "value": 7}},
+               "then": then_block, "else": else_block}
+        env = {}
+        result = evaluator.evaluate(node, env)
         self.assertEqual(result, (7, 'exit'))
         self.assertNotIn('x', env)
 

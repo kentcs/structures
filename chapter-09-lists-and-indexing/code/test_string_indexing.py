@@ -4,6 +4,10 @@ from unittest.mock import patch
 import evaluator
 
 
+def exit_node(value=7):
+    return {"tag": "exit", "expression": {"tag": "number", "value": value}}
+
+
 class StringIndexingTests(unittest.TestCase):
     def run_source(self, source, environment=None):
         if environment is None:
@@ -113,10 +117,22 @@ class StringIndexingTests(unittest.TestCase):
     # ===== Status propagation =====
 
     def test_exit_from_the_base_or_the_index_propagates(self):
-        for source in ('x=exit(7)[input()]', 'x="hello"[exit(7)]'):
-            with self.subTest(source=source):
+        # exit can no longer sit inside a larger expression in real source;
+        # each node below is built directly to check the evaluator's own
+        # propagation independent of what the parser currently admits.
+        input_node = {"tag": "input", "prompt": None}
+        cases = [
+            {"tag": "complex", "base": exit_node(), "index": input_node},
+            {"tag": "complex", "base": {"tag": "string", "value": "hello"},
+             "index": exit_node()},
+        ]
+        for node in cases:
+            with self.subTest(base_tag=node["base"]["tag"]):
+                target = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+                         "expression": node}
+                env = {}
                 with patch('builtins.input') as fake_input:
-                    result, env = self.run_source(source)
+                    result = evaluator.evaluate(target, env)
                 self.assertEqual(result, (7, 'exit'))
                 self.assertNotIn('x', env)
                 fake_input.assert_not_called()

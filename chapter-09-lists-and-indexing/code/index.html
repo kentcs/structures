@@ -282,7 +282,7 @@ def evaluate(ast, environment):
 
     if ast["tag"] == "complex":
         # Reading: base and index are both evaluated and checked for status
-        # before the access happens. Assignment to the same node shape is
+        # before the access happens. Assignment to the same node form is
         # handled separately, under "assign", where this same read logic
         # is what resolves every level except the last.
         base, status = evaluate(ast["base"], environment)
@@ -874,11 +874,12 @@ while (length(remaining) &gt; 0) {
 };
 print(backwards);
 
-// exit still propagates through every new position: a list element, an
-// index base, an index, and an indexed assignment's right-hand value.
-// Inject it into the value this time; the list must stay unmutated.
+// exit still propagates from every position the evaluator checks -- a list
+// element, an index base, an index, or an indexed assignment's value --
+// though none of those can be shown nested in source anymore: exit cannot
+// sit inside a larger expression, only stand alone as a statement.
 guard = [1, 2, 3];
-guard[0] = exit(3);
+exit(3);
 print("This statement must not run");
 </code></pre></section>
 <section class="source-file" id="file-7061727365722e7079" aria-labelledby="title-file-7061727365722e7079" hidden><header class="file-header"><h2 id="title-file-7061727365722e7079">parser.py</h2></header><pre><code># parser.py
@@ -931,9 +932,11 @@ from tokenizer import tokenize
 #   complex_expression ::= factor { index_suffix }
 #   index_suffix ::= "[" expression "]"
 #   An index_suffix chain produces "complex" nodes, not "index" nodes: a
-#   later chapter's function calls are the same postfix shape with a
-#   different suffix, and will extend this node instead of introducing a
-#   parallel one. Indexing applies uniformly after any factor, not just an
+#   later chapter's function calls are the same postfix form with a
+#   different suffix, and will share this same loop rather than becoming
+#   a parallel parsing path -- though a call will need its own node tag,
+#   not an extension of this one, since a call's payload is an argument
+#   list, not an index. Indexing applies uniformly after any factor, not just an
 #   identifier: a list literal, a parenthesized expression, even another
 #   complex expression, which is what makes matrix[row][column] a chain of
 #   two nodes rather than a special two-argument form.
@@ -941,10 +944,12 @@ from tokenizer import tokenize
 #   ===== CHAPTER 3: strings and input are expression forms =====
 #   factor ::= &lt;number&gt; | &lt;string&gt; | &lt;identifier&gt; | "true" | "false" | input_expression
 #          | number_expression | string_expression | boolean_expression
-#          | type_expression | exit_expression | list_expression
+#          | type_expression | list_expression
 #          | length_expression | slice_expression | head_expression
 #          | tail_expression | "(" expression ")"
 #   exit_expression ::= "exit" "(" [ expression ] ")"
+#   exit_expression is a statement, not a factor: it cannot nest inside a
+#   larger expression, only stand alone.
 #   input_expression ::= "input" "(" [ expression ] ")"
 #   number_expression ::= "number" "(" expression ")"
 #   string_expression ::= "string" "(" expression ")"
@@ -960,7 +965,7 @@ from tokenizer import tokenize
 #   slice, head, and tail are dedicated forms, like length: the syntax looks
 #   like a call, but no general function call exists yet.
 #
-# input has function-shaped syntax, but this chapter does not implement
+# input has function-call syntax, but this chapter does not implement
 # general function calls, parameters, or function values.
 
 
@@ -986,8 +991,6 @@ def parse_input_expression(tokens):
 
 def parse_factor(tokens):
     token = tokens[0]
-    if token["tag"] == "exit":
-        return parse_exit_expression(tokens)
     # Both keywords become the same kind of literal node, with different values.
     if token["tag"] in ("true", "false"):
         return {"tag": "boolean", "value": token["tag"] == "true"}, tokens[1:]
@@ -1073,8 +1076,10 @@ def parse_complex_suffixes(node, tokens):
     # target): both are the same chain of "complex" nodes, evaluated
     # differently depending on which side of "=" they end up on. The tag is
     # "complex" rather than "index" on purpose: a later chapter's function
-    # calls are the same postfix shape with a different suffix, and will
-    # extend this same node instead of introducing a parallel one.
+    # calls are the same postfix form with a different suffix, and will
+    # share this same loop rather than becoming a parallel parsing path --
+    # though a call will need its own node tag, not an extension of this
+    # one, since a call's payload is an argument list, not an index.
     while tokens[0]["tag"] == "[":
         index, tokens = parse_expression(tokens[1:])
         tokens = require(tokens, "]", "Expected ']' after index")
@@ -1869,9 +1874,13 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from evaluator import evaluate_source
+from evaluator import evaluate, evaluate_source
 from parser import parse
 from tokenizer import tokenize
+
+
+def exit_node(value=7):
+    return {"tag": "exit", "expression": {"tag": "number", "value": value}}
 
 
 class AssertionTests(unittest.TestCase):
@@ -1904,11 +1913,18 @@ class AssertionTests(unittest.TestCase):
         with patch('builtins.input', return_value='yes') as read:
             self.assertEqual(evaluate_source('assert input()=="yes","Expected yes"')[0], (None, None))
         read.assert_called_once_with()
+        # ===== exit no longer nests inside a condition expression; build
+        # the assert node directly to check the evaluator's own handling =====
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
-            self.assertEqual(evaluate_source('assert exit(7),"unused"')[0], (7, 'exit'))
+            node = {"tag": "assert", "expression": exit_node(7), "explanation": "unused"}
+            self.assertEqual(evaluate(node, {}), (7, 'exit'))
         self.assertEqual(err.getvalue(), '')
-        self.assertEqual(evaluate_source('assert true or exit(7),"Expected true"')[0], (None, None))
+        node = {"tag": "assert",
+                "expression": {"tag": "or", "left": {"tag": "boolean", "value": True},
+                               "right": exit_node(7)},
+                "explanation": "Expected true"}
+        self.assertEqual(evaluate(node, {}), (None, None))
 
     def test_requires_boolean(self):
         for expression in ('0', '1', '"true"'):
@@ -2207,8 +2223,16 @@ class ConditionalTests(unittest.TestCase):
     def test_exit_in_condition_skips_both_branches(self):
         # An exit found while evaluating the condition propagates immediately:
         # it is never checked against the boolean requirement, and neither
-        # branch runs.
-        result, env = self.run_source('if (exit(7)) { x=1 } else { x=2 }')
+        # branch runs. exit cannot sit inside the condition's source text,
+        # since it cannot nest inside any expression; the node is built
+        # directly to check the evaluator's own handling.
+        then_block = parse(tokenize('x=1'))["statements"]
+        else_block = parse(tokenize('x=2'))["statements"]
+        node = {"tag": "if",
+               "condition": {"tag": "exit", "expression": {"tag": "number", "value": 7}},
+               "then": then_block, "else": else_block}
+        env = {}
+        result = evaluator.evaluate(node, env)
         self.assertEqual(result, (7, 'exit'))
         self.assertNotIn('x', env)
 
@@ -2400,8 +2424,12 @@ import unittest
 from unittest.mock import patch
 
 import evaluator
-from parser import parse, parse_expression
+from parser import parse, parse_expression, parse_statement
 from tokenizer import tokenize
+
+
+def exit_node(value=7):
+    return {"tag": "exit", "expression": {"tag": "number", "value": value}}
 
 
 class EvaluationStatusTests(unittest.TestCase):
@@ -2412,6 +2440,17 @@ class EvaluationStatusTests(unittest.TestCase):
             environment = {}
         return evaluator.evaluate(node, environment)
 
+    def evaluate_program(self, statements, environment=None):
+        # ===== exit no longer nests inside a larger expression, so a
+        # program that needs one mid-expression is built directly instead
+        # of parsed from source text, the same way evaluate_source builds
+        # one from text. =====
+        if environment is None:
+            environment = {}
+        ast = {"tag": "program",
+               "statements": {"tag": "statement_list", "statements": statements}}
+        return evaluator.evaluate(ast, environment), environment
+
     def test_normal_values_and_statuses(self):
         for source, value in [('42', 42), ('true', True), ('"hello"', 'hello'),
                               ('number("2")+3', 5), ('type(false)', 'boolean'),
@@ -2421,43 +2460,81 @@ class EvaluationStatusTests(unittest.TestCase):
         self.assertEqual(evaluator.evaluate_source('x=2')[0], (None, None))
 
     def test_exit_defaults_and_nested_exit(self):
-        self.assertEqual(self.expression('exit()'), (0, 'exit'))
-        self.assertEqual(self.expression('exit(7)'), (7, 'exit'))
-        self.assertEqual(self.expression('exit(exit(9))'), (9, 'exit'))
+        # exit() and exit(7), standing alone, are still legal statements,
+        # parsed the ordinary way through parse_statement; what this test
+        # checks is the evaluator's own handling of the resulting node.
+        statement, rest = parse_statement(tokenize('exit()'))
+        self.assertIsNone(rest[0]["tag"])
+        self.assertEqual(evaluator.evaluate(statement, {}), (0, 'exit'))
+        statement, rest = parse_statement(tokenize('exit(7)'))
+        self.assertIsNone(rest[0]["tag"])
+        self.assertEqual(evaluator.evaluate(statement, {}), (7, 'exit'))
+        # exit(exit(9)) is no longer legal source: exit cannot nest inside
+        # another expression, including another exit's own argument. The
+        # evaluator's own handling of a status produced while evaluating
+        # the argument is still checked directly, on a hand-built node.
+        nested = {"tag": "exit", "expression": exit_node(9)}
+        self.assertEqual(evaluator.evaluate(nested, {}), (9, 'exit'))
         for source in ('exit(true)', 'exit(2.5)', 'exit("7")'):
             with self.subTest(source=source), self.assertRaises(TypeError):
-                self.expression(source)
+                statement, _ = parse_statement(tokenize(source))
+                evaluator.evaluate(statement, {})
 
     def test_unary_and_conversion_propagation(self):
-        for source in ('-exit(7)', 'not exit(7)', 'number(exit(7))',
-                       'string(exit(7))', 'boolean(exit(7))', 'type(exit(7))'):
-            with self.subTest(source=source):
-                self.assertEqual(self.expression(source), (7, 'exit'))
+        # exit(7) can no longer sit inside a larger expression in real
+        # source; each case here builds the surrounding node directly and
+        # gives it a hand-built exit node as its operand, to check the
+        # evaluator's own status handling independent of what the parser
+        # currently admits as legal source text.
+        cases = [
+            {"tag": "unary-", "operand": exit_node()},
+            {"tag": "not", "operand": exit_node()},
+            {"tag": "number_conversion", "expression": exit_node()},
+            {"tag": "string_conversion", "expression": exit_node()},
+            {"tag": "boolean_conversion", "expression": exit_node()},
+            {"tag": "type_query", "expression": exit_node()},
+        ]
+        for node in cases:
+            with self.subTest(tag=node["tag"]):
+                self.assertEqual(evaluator.evaluate(node, {}), (7, 'exit'))
 
     def test_binary_propagation_before_later_work(self):
-        for operator in ('+', '-', '*', '/', '==', '!=', '&lt;', '&lt;=', '&gt;', '&gt;=',
-                         'and', 'or'):
-            with self.subTest(operator=operator), patch('builtins.input') as read:
-                self.assertEqual(self.expression(f'exit(7) {operator} input()'),
-                                 (7, 'exit'))
+        for op in ('+', '-', '*', '/', '==', '!=', '&lt;', '&lt;=', '&gt;', '&gt;=',
+                  'and', 'or'):
+            with self.subTest(operator=op), patch('builtins.input') as read:
+                node = {"tag": op, "left": exit_node(7),
+                        "right": {"tag": "input", "prompt": None}}
+                self.assertEqual(evaluator.evaluate(node, {}), (7, 'exit'))
                 read.assert_not_called()
         # Needed right operands propagate before applying the operation or
         # checking the exit value against the operation's operand types.
-        for source in ('1+exit(7)', '1-exit(7)', '1*exit(7)', '1/exit(7)',
-                       '1==exit(7)', '1!=exit(7)', '1&lt;exit(7)', '1&lt;=exit(7)',
-                       '1&gt;exit(7)', '1&gt;=exit(7)', 'true and exit(7)',
-                       'false or exit(7)'):
-            with self.subTest(source=source):
-                self.assertEqual(self.expression(source), (7, 'exit'))
+        left_operands = {'+': 1, '-': 1, '*': 1, '/': 1, '==': 1, '!=': 1,
+                         '&lt;': 1, '&lt;=': 1, '&gt;': 1, '&gt;=': 1,
+                         'and': True, 'or': False}
+        for op, left_value in left_operands.items():
+            with self.subTest(operator=op):
+                left_tag = "boolean" if op in ("and", "or") else "number"
+                node = {"tag": op, "left": {"tag": left_tag, "value": left_value},
+                        "right": exit_node(7)}
+                self.assertEqual(evaluator.evaluate(node, {}), (7, 'exit'))
 
     def test_short_circuit_still_skips_exit(self):
-        self.assertEqual(self.expression('false &amp;&amp; exit(7)'), (False, None))
-        self.assertEqual(self.expression('true || exit(7)'), (True, None))
+        # false &amp;&amp; exit(7) and true || exit(7) are no longer legal source
+        # either, for the same reason; built directly, these still prove
+        # the right operand is never reached, since reaching it would
+        # produce an "exit" status instead of the plain value returned here.
+        and_node = {"tag": "and", "left": {"tag": "boolean", "value": False},
+                   "right": exit_node(7)}
+        self.assertEqual(evaluator.evaluate(and_node, {}), (False, None))
+        or_node = {"tag": "or", "left": {"tag": "boolean", "value": True},
+                  "right": exit_node(7)}
+        self.assertEqual(evaluator.evaluate(or_node, {}), (True, None))
 
     def test_input_prompt_exits_before_reading(self):
         env = {'__input': 'saved'}
+        node = {"tag": "input", "prompt": exit_node(7)}
         with patch('builtins.input') as read:
-            self.assertEqual(self.expression('input(exit(7))', env), (7, 'exit'))
+            self.assertEqual(evaluator.evaluate(node, env), (7, 'exit'))
         read.assert_not_called()
         self.assertEqual(env['__input'], 'saved')
 
@@ -2465,14 +2542,23 @@ class EvaluationStatusTests(unittest.TestCase):
         env = {'x': 3, '__output': 'previous', '__input': 'saved'}
         output = io.StringIO()
         with contextlib.redirect_stdout(output), patch('builtins.input') as read:
-            result, _ = evaluator.evaluate_source(
-                'x=exit(7);print(input());later=2', env)
+            result, _ = self.evaluate_program([
+                {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+                 "expression": exit_node(7)},
+                {"tag": "print", "expression": {"tag": "input", "prompt": None}},
+                {"tag": "assign", "target": {"tag": "identifier", "value": "later"},
+                 "expression": {"tag": "number", "value": 2}},
+            ], env)
         self.assertEqual(result, (7, 'exit'))
         self.assertEqual(env, {'x': 3, '__output': 'previous', '__input': 'saved'})
         self.assertEqual(output.getvalue(), '')
         read.assert_not_called()
         with contextlib.redirect_stdout(output):
-            result, _ = evaluator.evaluate_source('print(exit(8));later=2', env)
+            result, _ = self.evaluate_program([
+                {"tag": "print", "expression": exit_node(8)},
+                {"tag": "assign", "target": {"tag": "identifier", "value": "later"},
+                 "expression": {"tag": "number", "value": 2}},
+            ], env)
         self.assertEqual(result, (8, 'exit'))
         self.assertEqual(output.getvalue(), '')
         self.assertEqual(env['__output'], 'previous')
@@ -2480,7 +2566,9 @@ class EvaluationStatusTests(unittest.TestCase):
 
     def test_propagation_does_not_undo_earlier_effects(self):
         env = {'__input': 'first'}
-        self.assertEqual(self.expression('input()+exit(7)', env), (7, 'exit'))
+        node = {"tag": "+", "left": {"tag": "input", "prompt": None},
+                "right": exit_node(7)}
+        self.assertEqual(evaluator.evaluate(node, env), (7, 'exit'))
         self.assertEqual(env['__input'], '')
 
     def test_generic_status_is_not_limited_to_exit(self):
@@ -2507,6 +2595,23 @@ class EvaluationStatusTests(unittest.TestCase):
         for source in ('exit=1', 'exit', 'exit(1,2)', 'exit(', 'exit(1);x=1+'):
             with self.subTest(source=source), self.assertRaises(SyntaxError):
                 parse(tokenize(source))
+
+    def test_exit_rejected_in_expression_position(self):
+        # The hand-built AST tests above pin the evaluator's own status
+        # handling, but none of them pin the parser rule itself: that
+        # removing exit from parse_factor is what makes exit statement-only.
+        # Each of these would parse successfully if exit were still a
+        # factor -- none fails for any other reason -- so each one directly
+        # checks that removal, not just some unrelated syntax restriction.
+        for source in ('x=exit(7)', 'print(exit(7))', 'exit(exit(7))',
+                       'x=[exit(7)]', 'x=a[exit(7)]'):
+            with self.subTest(source=source), self.assertRaises(SyntaxError):
+                parse(tokenize(source))
+        # The positive control: exit(7) alone, with nothing asking it to be
+        # part of a larger expression, still parses and runs fine.
+        statement, rest = parse_statement(tokenize('exit(7)'))
+        self.assertIsNone(rest[0]["tag"])
+        self.assertEqual(evaluator.evaluate(statement, {}), (7, 'exit'))
 
     def test_runner_handles_exit(self):
         runner = Path(__file__).with_name('runner.py')
@@ -2641,12 +2746,33 @@ from parser import parse
 from tokenizer import tokenize
 
 
+def exit_node(value=7):
+    return {"tag": "exit", "expression": {"tag": "number", "value": value}}
+
+
 class ListTests(unittest.TestCase):
     def run_source(self, source, environment=None):
         if environment is None:
             environment = {}
         result, environment = evaluator.evaluate_source(source, environment)
         return result, environment
+
+    def run_mixed(self, parts, environment=None):
+        # Each part is either a source string, parsed normally, or an AST
+        # dict, standing in for syntax exit can no longer produce since it
+        # cannot nest inside a larger expression. Both kinds of statement
+        # run together in one program, the same as evaluate_source would.
+        statements = []
+        for part in parts:
+            if isinstance(part, str):
+                statements.extend(parse(tokenize(part))["statements"]["statements"])
+            else:
+                statements.append(part)
+        if environment is None:
+            environment = {}
+        ast = {"tag": "program",
+               "statements": {"tag": "statement_list", "statements": statements}}
+        return evaluator.evaluate(ast, environment), environment
 
     # ===== Literals =====
 
@@ -2916,22 +3042,40 @@ class ListTests(unittest.TestCase):
 
     # ===== Status propagation: exit injected at every position =====
 
+    # exit can no longer sit inside a larger expression in real source --
+    # it cannot nest inside any expression, only stand alone as a statement
+    # -- so each case below builds the surrounding node directly instead of
+    # parsing it, to check the evaluator's own propagation independent of
+    # what the parser currently admits as legal source text.
+
     def test_exit_from_a_list_element_stops_later_elements(self):
+        node = {"tag": "assign", "target": {"tag": "identifier", "value": "a"},
+               "expression": {"tag": "list", "items": [
+                   {"tag": "number", "value": 1}, exit_node(7),
+                   {"tag": "input", "prompt": None}]}}
         with patch('builtins.input') as fake_input:
-            result, _ = self.run_source('a=[1, exit(7), input()]')
+            result = evaluator.evaluate(node, {})
         self.assertEqual(result, (7, 'exit'))
         fake_input.assert_not_called()
 
     def test_exit_from_the_index_base_propagates(self):
+        node = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+               "expression": {"tag": "complex", "base": exit_node(7),
+                             "index": {"tag": "input", "prompt": None}}}
+        env = {}
         with patch('builtins.input') as fake_input:
-            result, env = self.run_source('x = exit(7)[input()]')
+            result = evaluator.evaluate(node, env)
         self.assertEqual(result, (7, 'exit'))
         self.assertNotIn('x', env)
         fake_input.assert_not_called()
 
     def test_exit_from_an_index_expression_propagates(self):
+        read = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+               "expression": {"tag": "complex",
+                             "base": {"tag": "identifier", "value": "a"},
+                             "index": exit_node(7)}}
         with patch('builtins.input') as fake_input:
-            result, env = self.run_source('a=[1, 2, 3]; x=a[exit(7)]')
+            result, env = self.run_mixed(['a=[1, 2, 3]', read])
         self.assertEqual(result, (7, 'exit'))
         self.assertNotIn('x', env)
         fake_input.assert_not_called()
@@ -2939,7 +3083,11 @@ class ListTests(unittest.TestCase):
     def test_exit_from_indexed_assignment_index_wins_over_the_value(self):
         # The target's index is resolved before the right-hand value, so an
         # exit from the index must win even if the value also exits.
-        result, env = self.run_source('a=[1, 2, 3]; a[exit(6)]=exit(999)')
+        write = {"tag": "assign",
+                "target": {"tag": "complex", "base": {"tag": "identifier", "value": "a"},
+                           "index": exit_node(6)},
+                "expression": exit_node(999)}
+        result, env = self.run_mixed(['a=[1, 2, 3]', write])
         self.assertEqual(result, (6, 'exit'))
         self.assertEqual(env['a'], [1, 2, 3])
 
@@ -2948,26 +3096,45 @@ class ListTests(unittest.TestCase):
         # not every observable effect, and not the rest of the environment
         # either: input() also updates __input, and that update is not
         # undone. A side effect that runs before exit is reached stands.
+        write = {"tag": "assign",
+                "target": {"tag": "complex", "base": {"tag": "identifier", "value": "a"},
+                           "index": {"tag": "+",
+                                    "left": {"tag": "number_conversion",
+                                            "expression": {"tag": "input", "prompt": None}},
+                                    "right": exit_node(6)}},
+                "expression": exit_node(999)}
         with patch('builtins.input', side_effect=['42']) as fake_input:
-            result, env = self.run_source(
-                'a=[1, 2, 3]; a[number(input()) + exit(6)]=exit(999)')
+            result, env = self.run_mixed(['a=[1, 2, 3]', write])
         self.assertEqual(result, (6, 'exit'))
         self.assertEqual(env['a'], [1, 2, 3])
         fake_input.assert_called_once()
 
     def test_exit_from_a_chained_assignment_base_wins_over_the_value(self):
-        result, env = self.run_source('m=[[1, 2], [3, 4]]; m[exit(7)][0]=exit(999)')
+        write = {"tag": "assign",
+                "target": {"tag": "complex",
+                           "base": {"tag": "complex", "base": {"tag": "identifier", "value": "m"},
+                                    "index": exit_node(7)},
+                           "index": {"tag": "number", "value": 0}},
+                "expression": exit_node(999)}
+        result, env = self.run_mixed(['m=[[1, 2], [3, 4]]', write])
         self.assertEqual(result, (7, 'exit'))
         self.assertEqual(env['m'], [[1, 2], [3, 4]])
 
     def test_exit_from_the_right_hand_value_leaves_the_list_unmutated(self):
-        result, env = self.run_source('a=[1, 2, 3]; a[0]=exit(9)')
+        write = {"tag": "assign",
+                "target": {"tag": "complex", "base": {"tag": "identifier", "value": "a"},
+                           "index": {"tag": "number", "value": 0}},
+                "expression": exit_node(9)}
+        result, env = self.run_mixed(['a=[1, 2, 3]', write])
         self.assertEqual(result, (9, 'exit'))
         # No pending mutation happens after a special status.
         self.assertEqual(env['a'], [1, 2, 3])
 
     def test_exit_from_plain_assignment_value_leaves_target_unset(self):
-        result, env = self.run_source('x=exit(9)')
+        node = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+               "expression": exit_node(9)}
+        env = {}
+        result = evaluator.evaluate(node, env)
         self.assertEqual(result, (9, 'exit'))
         self.assertNotIn('x', env)
 
@@ -3148,7 +3315,17 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(env['i'], 1)
 
     def test_exit_from_condition_propagates(self):
-        result, env = self.run_source('while (boolean(exit(9))) { x=1 }')
+        # exit cannot sit inside the condition's source text, since it
+        # cannot nest inside any expression; the node is built directly to
+        # check the evaluator's own handling.
+        body = parse(tokenize('x=1'))["statements"]
+        node = {"tag": "while",
+               "condition": {"tag": "boolean_conversion",
+                             "expression": {"tag": "exit",
+                                           "expression": {"tag": "number", "value": 9}}},
+               "body": body}
+        env = {}
+        result = evaluator.evaluate(node, env)
         self.assertEqual(result, (9, 'exit'))
         self.assertNotIn('x', env)
 
@@ -3242,9 +3419,30 @@ def answer_blocks():
     """Return the vertex code blocks of each numbered answer, in order."""
     with open(CHAPTER) as chapter_file:
         text = chapter_file.read()
-    section = text.split("## Answers to the Practice Questions", 1)[1]
+    section = text.split("## Answers to the Practice Questions", 1)[1].split("## References", 1)[0]
     answers = re.split(r"(?m)^(?=\d+\. )", section)[1:]
     return [re.findall(r"```vertex\n(.*?)```", a, re.S) for a in answers]
+
+
+def exit_node(value=7):
+    return {"tag": "exit", "expression": {"tag": "number", "value": value}}
+
+
+def run_mixed(parts, environment=None):
+    # Each part is either a source string, parsed normally, or an AST dict,
+    # standing in for syntax exit can no longer produce since it cannot
+    # nest inside a larger expression.
+    statements = []
+    for part in parts:
+        if isinstance(part, str):
+            statements.extend(parse(tokenize(part))["statements"]["statements"])
+        else:
+            statements.append(part)
+    if environment is None:
+        environment = {}
+    ast = {"tag": "program",
+           "statements": {"tag": "statement_list", "statements": statements}}
+    return evaluator.evaluate(ast, environment), environment
 
 
 def run(source):
@@ -3284,20 +3482,31 @@ class PracticeAnswerTests(unittest.TestCase):
         self.assertEqual(printed, ["[75, 85, 95]"])
 
     def test_3_exit_after_index_check_leaves_grid_unchanged(self):
-        environment = {}
-        ast = parse(tokenize(
-            "grid = [[1, 2], [3, 4]]; grid[0][1] = exit(4);"))
-        result, status = evaluator.evaluate(ast, environment)
+        # exit can no longer sit inside grid[0][1] = exit(4) in real source,
+        # since it cannot nest inside the assignment's right-hand
+        # expression; the write is built directly to check the same
+        # property the chapter's answer describes.
+        write = {"tag": "assign",
+                "target": {"tag": "complex",
+                           "base": {"tag": "complex", "base": {"tag": "identifier", "value": "grid"},
+                                    "index": {"tag": "number", "value": 0}},
+                           "index": {"tag": "number", "value": 1}},
+                "expression": exit_node(4)}
+        (result, status), environment = run_mixed(["grid = [[1, 2], [3, 4]];", write])
         self.assertEqual((result, status), (4, "exit"))
         self.assertEqual(environment["grid"], [[1, 2], [3, 4]])
 
     def test_3_bad_index_raises_before_exit_runs(self):
+        write = {"tag": "assign",
+                "target": {"tag": "complex", "base": {"tag": "identifier", "value": "a"},
+                           "index": {"tag": "number", "value": 5}},
+                "expression": exit_node(4)}
         with self.assertRaises(IndexError):
-            run("a = [1]; a[5] = exit(4);")
+            run_mixed(["a = [1];", write])
 
     def test_4_list_copy_is_new(self):
         printed, _ = run(self.blocks[3][0] +
-                         "\ncopy[0] = 99;\nprint(original);\nprint(copy);")
+                         "\nmycopy[0] = 99;\nprint(original);\nprint(mycopy);")
         self.assertEqual(printed, ["[1, 2, 3]", "[1, 2, 3]", "[99, 2, 3]"])
 
     def test_4_string_copy(self):
@@ -3334,6 +3543,10 @@ if __name__ == "__main__":
 from unittest.mock import patch
 
 import evaluator
+
+
+def exit_node(value=7):
+    return {"tag": "exit", "expression": {"tag": "number", "value": value}}
 
 
 class SliceHeadTailTests(unittest.TestCase):
@@ -3580,17 +3793,29 @@ class SliceHeadTailTests(unittest.TestCase):
     # ===== Status propagation and evaluation order =====
 
     def test_exit_from_every_position_propagates(self):
-        sources = [
-            'x=slice(exit(7), input(), input())',
-            'x=slice([1, 2], exit(7), input())',
-            'x=slice([1, 2], 0, exit(7))',
-            'x=head(exit(7))',
-            'x=tail(exit(7))',
+        # exit can no longer sit inside a larger expression in real source;
+        # each node below is built directly to check the evaluator's own
+        # propagation independent of what the parser currently admits.
+        input_node = {"tag": "input", "prompt": None}
+        two_list = {"tag": "list", "items": [{"tag": "number", "value": 1},
+                                             {"tag": "number", "value": 2}]}
+        cases = [
+            {"tag": "slice", "expression": exit_node(), "start": input_node,
+             "end": input_node},
+            {"tag": "slice", "expression": two_list, "start": exit_node(),
+             "end": input_node},
+            {"tag": "slice", "expression": two_list,
+             "start": {"tag": "number", "value": 0}, "end": exit_node()},
+            {"tag": "head", "expression": exit_node()},
+            {"tag": "tail", "expression": exit_node()},
         ]
-        for source in sources:
-            with self.subTest(source=source):
+        for node in cases:
+            with self.subTest(tag=node["tag"]):
+                target = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+                         "expression": node}
+                env = {}
                 with patch('builtins.input') as fake_input:
-                    result, env = self.run_source(source)
+                    result = evaluator.evaluate(target, env)
                 self.assertEqual(result, (7, 'exit'))
                 self.assertNotIn('x', env)
                 fake_input.assert_not_called()
@@ -3604,7 +3829,12 @@ class SliceHeadTailTests(unittest.TestCase):
     def test_slice_evaluates_all_arguments_before_checking_types(self):
         # Every argument is evaluated, in order, before any argument is
         # checked, so an earlier type error does not hide a later exit.
-        result, env = self.run_source('x=slice(5, 0, exit(4))')
+        node = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+               "expression": {"tag": "slice", "expression": {"tag": "number", "value": 5},
+                             "start": {"tag": "number", "value": 0},
+                             "end": exit_node(4)}}
+        env = {}
+        result = evaluator.evaluate(node, env)
         self.assertEqual(result, (4, 'exit'))
         self.assertNotIn('x', env)
 
@@ -3616,6 +3846,10 @@ if __name__ == '__main__':
 from unittest.mock import patch
 
 import evaluator
+
+
+def exit_node(value=7):
+    return {"tag": "exit", "expression": {"tag": "number", "value": value}}
 
 
 class StringIndexingTests(unittest.TestCase):
@@ -3727,10 +3961,22 @@ class StringIndexingTests(unittest.TestCase):
     # ===== Status propagation =====
 
     def test_exit_from_the_base_or_the_index_propagates(self):
-        for source in ('x=exit(7)[input()]', 'x="hello"[exit(7)]'):
-            with self.subTest(source=source):
+        # exit can no longer sit inside a larger expression in real source;
+        # each node below is built directly to check the evaluator's own
+        # propagation independent of what the parser currently admits.
+        input_node = {"tag": "input", "prompt": None}
+        cases = [
+            {"tag": "complex", "base": exit_node(), "index": input_node},
+            {"tag": "complex", "base": {"tag": "string", "value": "hello"},
+             "index": exit_node()},
+        ]
+        for node in cases:
+            with self.subTest(base_tag=node["base"]["tag"]):
+                target = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+                         "expression": node}
+                env = {}
                 with patch('builtins.input') as fake_input:
-                    result, env = self.run_source(source)
+                    result = evaluator.evaluate(target, env)
                 self.assertEqual(result, (7, 'exit'))
                 self.assertNotIn('x', env)
                 fake_input.assert_not_called()
@@ -3743,7 +3989,21 @@ if __name__ == '__main__':
 import unittest
 from unittest.mock import patch
 
-from evaluator import evaluate_source
+from evaluator import evaluate, evaluate_source
+
+
+def exit_node(value=7):
+    return {"tag": "exit", "expression": {"tag": "number", "value": value}}
+
+
+def evaluate_program(statements, environment=None):
+    # ===== exit no longer nests inside a larger expression, so a program
+    # that needs one mid-expression is built directly instead of parsed
+    # from source text, the same way evaluate_source builds one from text. =====
+    if environment is None:
+        environment = {}
+    ast = {"tag": "program", "statements": {"tag": "statement_list", "statements": statements}}
+    return evaluate(ast, environment), environment
 
 
 class StringOrderingTests(unittest.TestCase):
@@ -3772,12 +4032,26 @@ class StringOrderingTests(unittest.TestCase):
                         self.value(f"{left} {symbol} {right}")
 
     def test_exit_propagates_before_comparison_or_storage(self):
+        target = {"tag": "identifier", "value": "result"}
+        set_old = {"tag": "assign", "target": target, "expression": {"tag": "string", "value": "old"}}
         with patch("builtins.input") as read:
-            result, env = evaluate_source('result="old";result=exit(7)&lt;input()')
+            result, env = evaluate_program([
+                set_old,
+                {"tag": "assign", "target": target,
+                 "expression": {"tag": "&lt;", "left": exit_node(7),
+                                "right": {"tag": "input", "prompt": None}}},
+            ])
         read.assert_not_called()
         self.assertEqual(result, (7, "exit"))
         self.assertEqual(env["result"], "old")
-        result, env = evaluate_source('__input="ant";result="old";result=input()&lt;exit(7)')
+        result, env = evaluate_program([
+            {"tag": "assign", "target": {"tag": "identifier", "value": "__input"},
+             "expression": {"tag": "string", "value": "ant"}},
+            set_old,
+            {"tag": "assign", "target": target,
+             "expression": {"tag": "&lt;", "left": {"tag": "input", "prompt": None},
+                            "right": exit_node(7)}},
+        ])
         self.assertEqual(result, (7, "exit"))
         self.assertEqual(env["result"], "old")
         self.assertEqual(env["__input"], "")
