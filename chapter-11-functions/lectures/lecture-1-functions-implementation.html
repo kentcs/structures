@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 11 Deep Dive: Functions</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="functions-deep-dive">Functions: Deep Dive</h1>
+<p>Why the implementation looks like this</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="named-form-is-pure-sugar">Named Form Is Pure Sugar</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> parse_function_tail(tokens):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># &quot;(&quot; [ identifier { &quot;,&quot; identifier } ] &quot;)&quot; block</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    node <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;function&quot;</span>, <span class="st">&quot;parameters&quot;</span>: parameters, <span class="st">&quot;body&quot;</span>: body}</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> node, tokens</span></code></pre></div>
+<p><code>function_expression</code> and <code>function_definition</code>
+both call this one helper right after consuming <code>"function"</code>.
+The only difference is whether an identifier came first.</p>
+</section>
+<section><h2 id="disambiguating-function">Disambiguating
+<code>function</code></h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;function&quot;</span> <span class="kw">and</span> tokens[<span class="dv">1</span>][<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;identifier&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> parse_function_definition(tokens)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> parse_expression(tokens)</span></code></pre></div>
+<p><strong>One token of lookahead decides it: an identifier after
+<code>function</code> means the named sugar; anything else falls through
+to the ordinary expression path.</strong></p>
+</section>
+<section><h2 id="a-call-shares-the-suffix-loop-not-the-complex-node">A Call
+Shares the Suffix Loop, Not the <code>complex</code> Node</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="kw">in</span> (<span class="st">&quot;[&quot;</span>, <span class="st">&quot;.&quot;</span>, <span class="st">&quot;(&quot;</span>):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;[&quot;</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        node <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;complex&quot;</span>, <span class="st">&quot;base&quot;</span>: node, <span class="st">&quot;index&quot;</span>: index}</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;.&quot;</span>:</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        node <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;complex&quot;</span>, <span class="st">&quot;base&quot;</span>: node, <span class="st">&quot;index&quot;</span>: index}</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        arguments, tokens <span class="op">=</span> parse_call_arguments(tokens)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        node <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;call&quot;</span>, <span class="st">&quot;callee&quot;</span>: node, <span class="st">&quot;arguments&quot;</span>: arguments}</span></code></pre></div>
+<p><code>(args)</code> is the third suffix kind in the same loop
+<code>[</code> and <code>.</code> already use, but it builds its own
+<code>"call"</code> node, not another <code>"complex"</code> one.</p>
+</section>
+<section><h2 id="dynamic-scoping-retain-nothing-but-parameters-and-body">Dynamic
+Scoping: Retain Nothing But Parameters and Body</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> ast[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;function&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">global</span> function_count</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    function_count <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {FUNCTION_KEY: function_count,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;parameters&quot;</span>: ast[<span class="st">&quot;parameters&quot;</span>],</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;body&quot;</span>: ast[<span class="st">&quot;body&quot;</span>]}, <span class="va">None</span></span></code></pre></div>
+<p><strong>That is the whole representation. No reference to where it
+was defined.</strong></p>
+</section>
+<section><h2 id="a-non-string-key-makes-a-function-value-unambiguous">A
+Non-String Key Makes a Function Value Unambiguous</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>FUNCTION_KEY <span class="op">=</span> <span class="va">None</span>  <span class="co"># not a string -- no object literal can ever write it</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_function(value):</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">type</span>(value) <span class="kw">is</span> <span class="bu">dict</span> <span class="kw">and</span> FUNCTION_KEY <span class="kw">in</span> value</span></code></pre></div>
+<p><strong>The evaluator already requires every object key to be a
+string; a key that is not one is reserved for free.</strong></p>
+</section>
+<section><h2 id="where-leaning-on-pythons-types-falls-short">Where Leaning on
+Python’s Types Falls Short</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># every earlier chapter: ask Python what kind of value this is</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">type</span>(value) <span class="kw">is</span> <span class="bu">dict</span>    <span class="co"># a Vertex object?</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="bu">type</span>(value) <span class="kw">is</span> <span class="bu">list</span>    <span class="co"># a Vertex list?</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co"># this chapter: ask a reserved key instead</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>is_function(value)     <span class="co"># a Vertex function?</span></span></code></pre></div>
+<p><strong>Python’s types answer “what kind of Python object is this,”
+not “what kind of Vertex value is this” – this chapter is the first time
+that gap mattered.</strong></p>
+</section>
+<section><h2 id="arity-checked-after-arguments-not-before">Arity Checked After
+Arguments, Not Before</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>arguments <span class="op">=</span> []</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> argument_ast <span class="kw">in</span> ast[<span class="st">&quot;arguments&quot;</span>]:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    value, status <span class="op">=</span> evaluate(argument_ast, environment)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> value, status</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    arguments.append(value)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(arguments) <span class="op">!=</span> <span class="bu">len</span>(callee[<span class="st">&quot;parameters&quot;</span>]):</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">TypeError</span>(...)</span></code></pre></div>
+<p><strong>Every argument is evaluated, and checked, before arity is
+even looked at.</strong></p>
+</section>
+<section><h2 id="a-call-is-a-new-status-boundary">A Call Is a New Status
+Boundary</h2>
+<table>
+<thead>
+<tr>
+<th>Body’s status</th>
+<th>Call reports</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"return"</code></td>
+<td>The value, with no status</td>
+</tr>
+<tr>
+<td><code>None</code> (fell off the end)</td>
+<td><code>null</code>, with no status</td>
+</tr>
+<tr>
+<td><code>"exit"</code></td>
+<td>Passed outward unchanged</td>
+</tr>
+<tr>
+<td><code>"break"</code> or <code>"continue"</code></td>
+<td>A specific error</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="kw">in</span> (<span class="st">&quot;break&quot;</span>, <span class="st">&quot;continue&quot;</span>):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&quot;&#39;</span><span class="sc">{</span>status<span class="sc">}</span><span class="ss">&#39; used outside a loop&quot;</span>)</span></code></pre></div>
+<p><strong>Inlined at both boundaries, not shared – four lines twice is
+not worth a helper.</strong></p>
+</section>
+<section><h2 id="assignment-moves-into-the-expression-grammar">Assignment Moves
+Into the Expression Grammar</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> parse_expression(tokens):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    left, tokens <span class="op">=</span> parse_logic_or(tokens)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;=&quot;</span>:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        right, tokens <span class="op">=</span> parse_expression(tokens[<span class="dv">1</span>:])</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;assign&quot;</span>, <span class="st">&quot;target&quot;</span>: left, <span class="st">&quot;expression&quot;</span>: right}, tokens</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> left, tokens</span></code></pre></div>
+<p><strong>Lowest precedence, right-associative: <code>x = y = 1</code>
+parses as <code>x = (y = 1)</code>.</strong></p>
+</section>
+<section><h2 id="assignability-is-an-evaluator-question-now">Assignability Is an
+Evaluator Question Now</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> target[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;identifier&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="cf">elif</span> target[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;complex&quot;</span>:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&quot;Cannot assign to a </span><span class="sc">{</span>target[<span class="st">&#39;tag&#39;</span>]<span class="sc">}</span><span class="ss"> expression&quot;</span>)</span></code></pre></div>
+<p><strong><code>1 = 2</code>, <code>f() = 5</code>, and
+<code>(x + 1) = 5</code> all parse. None of them evaluate.</strong></p>
+</section>
+<section><h2 id="any-expression-may-be-a-statement">Any Expression May Be a
+Statement</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;return&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> parse_return_statement(tokens)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> parse_expression(tokens)</span></code></pre></div>
+<p><strong>That is the entire fallback. No more
+<code>assignment_statement</code>, no more bare-call special
+case.</strong></p>
+</section>
+<section><h2 id="exit-cannot-nest-but-a-call-can"><code>exit</code> Cannot Nest,
+But a Call Can</h2>
+<pre class="vertex"><code>numbers = [10, 20, 30];
+function stopAt(code) { exit(code); };
+print(numbers[stopAt(5)]);</code></pre>
+<p><strong>Exits with status <code>5</code>. The index is never used;
+the print never runs.</strong></p>
+</section>
+<section><h2 id="what-carries-forward">What Carries Forward</h2>
+<p><strong>The suffix loop absorbed a third kind the same way it
+absorbed its second: widen the loop, add a node, not a parallel
+design.</strong></p>
+<p><strong>A function value retaining only parameters and body is this
+chapter’s one real limitation – the next chapter’s closures retain
+more.</strong></p>
+<p><strong>Statements admitting any expression exist so a bare call can
+be a statement; assignment becoming an expression is what that
+unification then required.</strong></p>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>

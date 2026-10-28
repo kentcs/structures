@@ -48,9 +48,11 @@ from tokenizer import tokenize
 #   complex_expression ::= factor { index_suffix }
 #   index_suffix ::= "[" expression "]"
 #   An index_suffix chain produces "complex" nodes, not "index" nodes: a
-#   later chapter's function calls are the same postfix shape with a
-#   different suffix, and will extend this node instead of introducing a
-#   parallel one. Indexing applies uniformly after any factor, not just an
+#   later chapter's function calls are the same postfix form with a
+#   different suffix, and will share this same loop rather than becoming
+#   a parallel parsing path -- though a call will need its own node tag,
+#   not an extension of this one, since a call's payload is an argument
+#   list, not an index. Indexing applies uniformly after any factor, not just an
 #   identifier: a list literal, a parenthesized expression, even another
 #   complex expression, which is what makes matrix[row][column] a chain of
 #   two nodes rather than a special two-argument form.
@@ -58,10 +60,12 @@ from tokenizer import tokenize
 #   ===== CHAPTER 3: strings and input are expression forms =====
 #   factor ::= <number> | <string> | <identifier> | "true" | "false" | input_expression
 #          | number_expression | string_expression | boolean_expression
-#          | type_expression | exit_expression | list_expression
+#          | type_expression | list_expression
 #          | length_expression | slice_expression | head_expression
 #          | tail_expression | "(" expression ")"
 #   exit_expression ::= "exit" "(" [ expression ] ")"
+#   exit_expression is a statement, not a factor: it cannot nest inside a
+#   larger expression, only stand alone.
 #   input_expression ::= "input" "(" [ expression ] ")"
 #   number_expression ::= "number" "(" expression ")"
 #   string_expression ::= "string" "(" expression ")"
@@ -77,7 +81,7 @@ from tokenizer import tokenize
 #   slice, head, and tail are dedicated forms, like length: the syntax looks
 #   like a call, but no general function call exists yet.
 #
-# input has function-shaped syntax, but this chapter does not implement
+# input has function-call syntax, but this chapter does not implement
 # general function calls, parameters, or function values.
 
 
@@ -103,8 +107,6 @@ def parse_input_expression(tokens):
 
 def parse_factor(tokens):
     token = tokens[0]
-    if token["tag"] == "exit":
-        return parse_exit_expression(tokens)
     # Both keywords become the same kind of literal node, with different values.
     if token["tag"] in ("true", "false"):
         return {"tag": "boolean", "value": token["tag"] == "true"}, tokens[1:]
@@ -190,8 +192,10 @@ def parse_complex_suffixes(node, tokens):
     # target): both are the same chain of "complex" nodes, evaluated
     # differently depending on which side of "=" they end up on. The tag is
     # "complex" rather than "index" on purpose: a later chapter's function
-    # calls are the same postfix shape with a different suffix, and will
-    # extend this same node instead of introducing a parallel one.
+    # calls are the same postfix form with a different suffix, and will
+    # share this same loop rather than becoming a parallel parsing path --
+    # though a call will need its own node tag, not an extension of this
+    # one, since a call's payload is an argument list, not an index.
     while tokens[0]["tag"] == "[":
         index, tokens = parse_expression(tokens[1:])
         tokens = require(tokens, "]", "Expected ']' after index")

@@ -6,9 +6,13 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from evaluator import evaluate_source
+from evaluator import evaluate, evaluate_source
 from parser import parse
 from tokenizer import tokenize
+
+
+def exit_node(value=7):
+    return {"tag": "exit", "expression": {"tag": "number", "value": value}}
 
 
 class AssertionTests(unittest.TestCase):
@@ -41,11 +45,18 @@ class AssertionTests(unittest.TestCase):
         with patch('builtins.input', return_value='yes') as read:
             self.assertEqual(evaluate_source('assert input()=="yes","Expected yes"')[0], (None, None))
         read.assert_called_once_with()
+        # ===== exit no longer nests inside a condition expression; build
+        # the assert node directly to check the evaluator's own handling =====
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
-            self.assertEqual(evaluate_source('assert exit(7),"unused"')[0], (7, 'exit'))
+            node = {"tag": "assert", "expression": exit_node(7), "explanation": "unused"}
+            self.assertEqual(evaluate(node, {}), (7, 'exit'))
         self.assertEqual(err.getvalue(), '')
-        self.assertEqual(evaluate_source('assert true or exit(7),"Expected true"')[0], (None, None))
+        node = {"tag": "assert",
+                "expression": {"tag": "or", "left": {"tag": "boolean", "value": True},
+                               "right": exit_node(7)},
+                "explanation": "Expected true"}
+        self.assertEqual(evaluate(node, {}), (None, None))
 
     def test_requires_boolean(self):
         for expression in ('0', '1', '"true"'):

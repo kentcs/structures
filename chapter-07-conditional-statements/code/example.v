@@ -46,7 +46,8 @@ if (true) {
 // The branch not taken is never evaluated: no input read, no exit, no
 // assertion failure, even though the code is right there in the source.
 if (false) {
-    stuck = exit(9) + number(input());
+    exit(9);
+    print(number(input()));
 } else {
     print("unselected branch never touched exit or input");
 };

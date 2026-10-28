@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 8 Deep Dive: Loops</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="loops-deep-dive">Loops: Deep Dive</h1>
+<p>Why the implementation looks like this</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="the-body-is-just-a-block">The Body Is Just a Block</h2>
+<p><code>while (condition) { ... }</code> reuses
+<code>parse_block</code> from Chapter 7 completely unchanged. There was
+no decision to make here in the sense of choosing between options; once
+a loop body is required to be a brace-delimited block, it is
+definitionally the same grammar production an <code>if</code> branch
+already uses, down to the same “statement_list is optional” rule that
+makes <code>while (x) { }</code> legal.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>body, tokens <span class="op">=</span> parse_block(tokens)</span></code></pre></div>
+<p>That is the entire body-parsing logic in
+<code>parse_while_statement</code>. One line, because the real work
+happened in Chapter 7.</p>
+</section>
+<section><h2 id="the-body-is-just-a-block-continued">The Body Is Just a Block
+(continued)</h2>
+<p>The interesting fact is what reuse implies in reverse: every property
+a block already had, a loop body gets for free, without anyone deciding
+it should. Empty bodies are legal, because <code>{}</code> already was.
+Trailing semicolons before the closing brace are legal, because that was
+already true of any block. None of that was designed with loops in mind.
+It was inherited the moment <code>parse_block</code> was chosen instead
+of something new.</p>
+<p><strong>Reuse is not a shortcut here. It is where the correctness
+comes from.</strong></p>
+</section>
+<section><h2 id="break-and-continue-are-leaves">break and continue Are
+Leaves</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> ast[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;break&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">None</span>, <span class="st">&quot;break&quot;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> ast[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;continue&quot;</span>:</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">None</span>, <span class="st">&quot;continue&quot;</span></span></code></pre></div>
+<p>Two lines each, and that is the whole implementation. Neither
+evaluates a child. Neither inspects the environment.</p>
+</section>
+<section><h2 id="break-and-continue-are-leaves-continued">break and continue Are
+Leaves (continued)</h2>
+<p>The decision here is more subtle than the two-line implementation
+suggests: <code>break</code> and <code>continue</code> do not know they
+are inside a loop. They do not check. They <em>cannot</em> check,
+because nothing about evaluating a node tells it what is calling it.
+They simply report a status and let whatever encloses them decide what,
+if anything, that status means.</p>
+<p>This is the same design chapter 6 already committed to for
+<code>exit</code>: <strong>a status is a fact about what happened, not
+an instruction about what to do next.</strong> The <code>while</code>
+node is the first thing that happens to care what <code>"break"</code>
+and <code>"continue"</code> mean. Nothing else in the interpreter needs
+to.</p>
+</section>
+<section><h2 id="four-outcomes-two-destinations">Four Outcomes, Two
+Destinations</h2>
+<p>Every design decision in <code>evaluate()</code>’s <code>while</code>
+case comes down to this classification. There are exactly four ways a
+pass through the Python <code>while True:</code> loop can end, and only
+two distinct places they can go:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Outcome</th>
+<th>Where it goes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Condition itself returns a status</td>
+<td>Out, immediately</td>
+</tr>
+<tr>
+<td>Condition is false</td>
+<td>Loop ends: <code>(None, None)</code></td>
+</tr>
+<tr>
+<td>Body returns <code>"break"</code></td>
+<td>Loop ends: <code>(None, None)</code></td>
+</tr>
+<tr>
+<td>Body returns anything else non-<code>None</code>,
+non-<code>"continue"</code></td>
+<td>Out, immediately</td>
+</tr>
+<tr>
+<td>Body completes normally, or returns <code>"continue"</code></td>
+<td>Back to the top, recheck condition</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="four-outcomes-two-destinations-continued">Four Outcomes, Two
+Destinations (continued)</h2>
+<p>Two outcomes share the exact same destination and return value
+despite meaning completely different things: a condition that finally
+came back false, and a body that explicitly asked to stop. The decision
+to let them converge, rather than distinguish them with a different
+status or return value, is what makes the code four <code>if</code>
+statements long instead of something with its own internal signaling
+scheme.</p>
+</section>
+<section><h2 id="convergence-is-correct-not-a-shortcut">Convergence Is Correct,
+Not a Shortcut</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">not</span> condition:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">None</span>, <span class="va">None</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="op">==</span> <span class="st">&quot;break&quot;</span>:</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">None</span>, <span class="va">None</span></span></code></pre></div>
+<p>(Two non-adjacent lines from the same function, shown together on
+purpose: identical outcome, unrelated cause.)</p>
+<p>It would be possible to return something that distinguishes “the
+condition failed” from “something asked to stop.” Nothing in this
+interpreter, or in any caller of a <code>while</code> node, has ever
+needed that distinction.</p>
+</section>
+<section><h2 id="convergence-is-correct-continued">Convergence Is Correct
+(continued)</h2>
+<p>Introducing a way to tell the two apart would be solving a problem
+nobody has, in exchange for a status space that now needs documenting,
+testing, and explaining to every future chapter that touches a loop.</p>
+<p>This is the same discipline chapter 7 already applied to
+<code>if</code>: <strong><code>(None, None)</code> is “normal
+completion,” full stop, regardless of which of several paths produced
+it.</strong> Chapter 8 did not invent that discipline. It just found its
+second use.</p>
+</section>
+<section><h2 id="no-new-code-to-reject-misuse">No New Code to Reject Misuse</h2>
+<p>The outline for this chapter asked for a decision: diagnose
+<code>break</code>/<code>continue</code> outside a loop during parsing,
+or at evaluation. The implementation picks neither, in the sense of
+writing anything new.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="op">==</span> <span class="st">&quot;exit&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Keep process termination outside the recursive evaluator.</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    sys.exit(value)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&quot;Unhandled evaluation status: </span><span class="sc">{</span>status<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<p>This is the runner’s fallback, written for Chapter 6, <strong>before
+<code>break</code> or <code>continue</code> existed.</strong></p>
+</section>
+<section><h2 id="no-new-code-to-reject-misuse-continued">No New Code to Reject
+Misuse (continued)</h2>
+<p><code>break</code> reaching the runner unconsumed is not a gap that
+got patched after the fact. The check was never special-cased for
+<code>exit</code> in the first place; <code>is not None</code> was
+always the condition, not <code>== "exit"</code>. It is the same
+fallback doing the same job it was always going to do, for a status that
+did not exist yet when the fallback was written.</p>
+<p><strong>The misuse this chapter’s outline worried about was already
+handled, two chapters before the misuse was possible.</strong></p>
+</section>
+<section><h2 id="why-this-matters-beyond-loops">Why This Matters Beyond
+Loops</h2>
+<p>The <code>(value, status)</code> contract from chapter 6 was
+deliberately generic: <code>status</code> is “something other than
+normal completion,” not an enum of known cases. Chapter 6 tested this
+directly, with a synthetic status standing in for a future one that did
+not exist yet.</p>
+<p>Chapter 8 is the first chapter to actually need that genericity, and
+it did not need to touch the contract at all to get it.</p>
+<p><strong>No change to <code>evaluate_source</code>. No change to the
+runner. No change to <code>if</code>, <code>statement_list</code>, or
+<code>program</code>.</strong></p>
+</section>
+<section><h2 id="continue-returns-to-the-condition-not-the-body">continue Returns
+to the Condition, Not the Body</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="kw">and</span> status <span class="op">!=</span> <span class="st">&quot;continue&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> value, status</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Normal completion and &quot;continue&quot; both return to the condition.</span></span></code></pre></div>
+<p>The tempting alternative is to have <code>continue</code> jump back
+into the body somehow, or perform an implicit update before looping.
+Neither is what happens.</p>
+</section>
+<section><h2 id="continue-returns-to-the-condition-continued">continue Returns to
+the Condition (continued)</h2>
+<p><code>continue</code> performs no update of its own because nothing
+about the status <code>"continue"</code> carries any information beyond
+“stop running this body now.” Whatever state changes already happened,
+happened; whatever was going to happen next in the body does not.</p>
+<p>The chapter’s own example makes the consequence concrete: move the
+counter update to <em>after</em> the
+<code>if (m == 3) { continue; }</code> check instead of before it, and
+the loop never advances past <code>m = 3</code>. <strong>That is not a
+bug in <code>continue</code>.</strong> It is <code>continue</code> doing
+exactly what it is defined to do, applied to a program that no longer
+has anywhere for progress to come from.</p>
+</section>
+<section><h2 id="bounded-subprocess-tests-narrowly-scoped">Bounded Subprocess
+Tests, Narrowly Scoped</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>SUBPROCESS_TIMEOUT <span class="op">=</span> <span class="dv">5</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> subprocess.run([sys.executable, <span class="bu">str</span>(runner), source],</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>                        capture_output<span class="op">=</span><span class="va">True</span>, text<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>                        stdin<span class="op">=</span>subprocess.DEVNULL,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>                        timeout<span class="op">=</span>SUBPROCESS_TIMEOUT)</span></code></pre></div>
+<p>Two tests in <code>test_loops.py</code> run small Vertex programs
+through the runner as a real subprocess with a wall-clock timeout,
+specifically so a regression that breaks loop termination fails fast
+instead of hanging CI forever.</p>
+</section>
+<section><h2 id="bounded-subprocess-tests-continued">Bounded Subprocess Tests
+(continued)</h2>
+<p>An earlier draft of the chapter implied this protected the whole test
+suite. It does not: every other loop test calls the evaluator
+in-process, with no timeout at all, and a regression there would still
+hang.</p>
+<p><strong>The actual scope is narrower, and more useful to know
+precisely</strong>: these two tests guard the two places in the suite
+most likely to actually run an unbounded loop by construction, not a
+blanket safety net over everything.</p>
+</section>
+<section><h2 id="what-carries-into-chapter-9">What Carries Into Chapter 9</h2>
+<p>Chapter 9 adds a mutable, compound value. Nothing about loops changes
+to accommodate it: a list is indexed and assigned the same way any other
+value is, inside a body, inside a condition, anywhere an expression or a
+target is already allowed.</p>
+<p><strong>The <code>while</code> node itself needs zero
+changes.</strong></p>
+<p>The pattern holds: a chapter that looks like it should touch
+everything upstream, by design, touches nothing upstream at all.</p>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>

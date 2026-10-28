@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 9 Deep Dive: Lists and Indexing</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="lists-and-indexing-deep-dive">Lists and Indexing: Deep Dive</h1>
+<p>Why the implementation looks like this</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="the-node-is-called-complex-not-index">The Node Is Called
+“complex”, Not “index”</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>node <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;complex&quot;</span>, <span class="st">&quot;base&quot;</span>: node, <span class="st">&quot;index&quot;</span>: index}</span></code></pre></div>
+<p>Chapter 9 only ever produces this node from a <code>[index]</code>
+suffix. Nothing here uses the generality the name implies yet.</p>
+</section>
+<section><h2 id="complex-continued">“complex” (continued)</h2>
+<p>Chapter 10 reuses this same mechanism for object field access by
+string key: the same <code>"complex"</code> node, just with a string
+index instead of an integer one. Chapter 11 adds function calls,
+syntactically the same form again: a base expression followed by a
+postfix suffix, <code>(args)</code> instead of <code>[index]</code>. The
+parser already builds a chain via <code>parse_complex_suffixes</code>;
+extending that loop to also accept <code>(</code> is a small addition to
+an existing function, not a redesign.</p>
+<p><strong>Naming the node for where it is going, not just what it
+currently does, is what makes both extensions small instead of a
+rename.</strong></p>
+</section>
+<section><h2 id="one-suffix-parsing-function-two-uses">One Suffix-Parsing
+Function, Two Uses</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>target, tokens <span class="op">=</span> parse_complex_suffixes(target, tokens[<span class="dv">1</span>:])</span></code></pre></div>
+<p>This is from <code>parse_assignment_statement</code>. It is the exact
+same function a read expression calls after any factor. An assignment
+target is not a different grammar production; it is the same node form,
+interpreted differently by the evaluator depending on which side of
+<code>=</code> it ends up on.</p>
+</section>
+<section><h2 id="target-before-value">Target Before Value</h2>
+<p>Plain assignment has always evaluated the right-hand value, then
+resolved the target. For an identifier, resolving the target does
+nothing observable, so this order was invisible for eight chapters.
+Indexed assignment makes it observable, because resolving the target now
+means evaluating expressions.</p>
+<p><strong>Chapter 9 picks the opposite order: target first, value last.
+Uniformly, for every kind of target.</strong></p>
+</section>
+<section><h2 id="target-before-value-proof">Target Before Value, Proof</h2>
+<p><code>exit</code> cannot sit inside
+<code>a[exit(6)] = exit(999)</code> in real source: it cannot nest
+inside any expression, only stand alone as a statement. Built directly
+as AST nodes instead, the same proof holds:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># exit_node(n) builds the AST node for exit(n)</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>base <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;identifier&quot;</span>, <span class="st">&quot;value&quot;</span>: <span class="st">&quot;a&quot;</span>}</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>target <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;complex&quot;</span>, <span class="st">&quot;base&quot;</span>: base, <span class="st">&quot;index&quot;</span>: exit_node(<span class="dv">6</span>)}</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>node <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;assign&quot;</span>, <span class="st">&quot;target&quot;</span>: target, <span class="st">&quot;expression&quot;</span>: exit_node(<span class="dv">999</span>)}</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>evaluate(node, {<span class="st">&quot;a&quot;</span>: [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>]})</span></code></pre></div>
+<p>Returns <code>(6, "exit")</code>. Not <code>(999, "exit")</code>.</p>
+<p>The index is checked before the value is touched. Evaluated first,
+the value would win instead: <code>(999, "exit")</code>.</p>
+</section>
+<section><h2 id="chains-follow-for-free">Chains Follow For Free</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>matrix_id <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;identifier&quot;</span>, <span class="st">&quot;value&quot;</span>: <span class="st">&quot;matrix&quot;</span>}</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>inner <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;complex&quot;</span>, <span class="st">&quot;base&quot;</span>: matrix_id, <span class="st">&quot;index&quot;</span>: exit_node(<span class="dv">7</span>)}</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>zero <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;number&quot;</span>, <span class="st">&quot;value&quot;</span>: <span class="dv">0</span>}</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>target <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;complex&quot;</span>, <span class="st">&quot;base&quot;</span>: inner, <span class="st">&quot;index&quot;</span>: zero}</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>node <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;assign&quot;</span>, <span class="st">&quot;target&quot;</span>: target, <span class="st">&quot;expression&quot;</span>: exit_node(<span class="dv">999</span>)}</span></code></pre></div>
+<p>Returns <code>(7, "exit")</code>, from the <em>inner</em> index,
+before the outer index or the value is ever reached.</p>
+</section>
+<section><h2 id="index-typing">Index Typing</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">type</span>(index) <span class="kw">is</span> <span class="bu">bool</span> <span class="kw">or</span> <span class="bu">type</span>(index) <span class="kw">not</span> <span class="kw">in</span> (<span class="bu">int</span>, <span class="bu">float</span>):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;Index must be an integer&quot;</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">type</span>(index) <span class="kw">is</span> <span class="bu">float</span> <span class="kw">and</span> <span class="kw">not</span> index.is_integer():</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;Index must be an integer&quot;</span>)</span></code></pre></div>
+<p><code>3</code> and <code>3.0</code> are both valid indices.
+<code>3.5</code> is not. <code>true</code> is not, even though Python’s
+own <code>isinstance(True, int)</code> is <code>True</code>.</p>
+</section>
+<section><h2 id="no-negative-indices-no-silent-growth">No Negative Indices, No
+Silent Growth</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>index <span class="op">=</span> <span class="bu">int</span>(index)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">not</span> (<span class="dv">0</span> <span class="op">&lt;=</span> index <span class="op">&lt;</span> <span class="bu">len</span>(base)):</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">IndexError</span>(<span class="st">&quot;Index out of range&quot;</span>)</span></code></pre></div>
+<p>One bounds check, used for both reading and writing.
+<code>a[-1]</code> is out of range, the same as <code>a[99]</code>.
+<code>a[5] = 1</code> on a three-element list raises; it does not grow
+the list to make room.</p>
+</section>
+<section><h2 id="one-store-two-kinds-of-destination">One Store, Two Kinds of
+Destination</h2>
+<pre class="vertex"><code>a = [1, 2, 3];
+b = a;
+b[0] = 99;</code></pre>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>destination[key] <span class="op">=</span> value</span></code></pre></div>
+<p><strong>The new code resolves a list position. The store is
+unchanged.</strong></p>
+</section>
+<section><h2 id="contrast-equality-needed-real-new-code">Contrast: Equality
+Needed Real New Code</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> vertex_equal(left, right):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">type</span>(left) <span class="kw">is</span> <span class="bu">list</span> <span class="kw">and</span> <span class="bu">type</span>(right) <span class="kw">is</span> <span class="bu">list</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(left) <span class="op">!=</span> <span class="bu">len</span>(right):</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">all</span>(vertex_equal(l, r) <span class="cf">for</span> l, r <span class="kw">in</span> <span class="bu">zip</span>(left, right))</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    numeric <span class="op">=</span> <span class="bu">type</span>(left) <span class="kw">in</span> (<span class="bu">int</span>, <span class="bu">float</span>) <span class="kw">and</span> <span class="bu">type</span>(right) <span class="kw">in</span> (<span class="bu">int</span>, <span class="bu">float</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (numeric <span class="kw">or</span> <span class="bu">type</span>(left) <span class="kw">is</span> <span class="bu">type</span>(right)) <span class="kw">and</span> left <span class="op">==</span> right</span></code></pre></div>
+<p>Unlike aliasing, this could not be inherited. Python’s own
+<code>[True] == [1]</code> is <code>True</code>.</p>
+</section>
+<section><h2 id="length-slice-head-and-tail-are-keywords-not-calls">length,
+slice, head, and tail Are Keywords, Not Calls</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>operations <span class="op">=</span> {<span class="st">&quot;number_conversion&quot;</span>: <span class="st">&quot;number&quot;</span>, <span class="st">&quot;string_conversion&quot;</span>: <span class="st">&quot;string&quot;</span>,</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>              <span class="st">&quot;boolean_conversion&quot;</span>: <span class="st">&quot;boolean&quot;</span>, <span class="st">&quot;type_query&quot;</span>: <span class="st">&quot;type&quot;</span>,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>              <span class="st">&quot;length&quot;</span>: <span class="st">&quot;length&quot;</span>, <span class="st">&quot;head&quot;</span>: <span class="st">&quot;head&quot;</span>, <span class="st">&quot;tail&quot;</span>: <span class="st">&quot;tail&quot;</span>}</span></code></pre></div>
+<p><code>length</code>, <code>head</code>, and <code>tail</code> join
+the same dict <code>number()</code>, <code>string()</code>,
+<code>boolean()</code>, and <code>type()</code> already used. Three new
+entries, not a new mechanism. <code>slice</code> takes three arguments,
+so it gets its own small parsing function.</p>
+</section>
+<section><h2 id="two-representations-one-function">Two Representations, One
+Function</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> vertex_repr(value):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">type</span>(value) <span class="kw">is</span> <span class="bu">bool</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">&quot;true&quot;</span> <span class="cf">if</span> value <span class="cf">else</span> <span class="st">&quot;false&quot;</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">type</span>(value) <span class="kw">is</span> <span class="bu">list</span>:</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">&quot;[&quot;</span> <span class="op">+</span> <span class="st">&quot;, &quot;</span>.join(vertex_repr(item) <span class="cf">for</span> item <span class="kw">in</span> value) <span class="op">+</span> <span class="st">&quot;]&quot;</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">type</span>(value) <span class="kw">is</span> <span class="bu">str</span>:</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        escaped <span class="op">=</span> ...</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">&#39;&quot;&#39;</span> <span class="op">+</span> escaped <span class="op">+</span> <span class="st">&#39;&quot;&#39;</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">str</span>(value)</span></code></pre></div>
+<p>A bare <code>print("hi")</code> still prints <code>hi</code>,
+unquoted, exactly as it always has. A string <em>inside</em> a list
+prints as <code>"hi"</code>, quoted.</p>
+</section>
+<section><h2 id="self-reference-is-allowed-not-rejected">Self-Reference Is
+Allowed, Not Rejected</h2>
+<pre class="vertex"><code>a = [0];
+a[0] = a;</code></pre>
+<p>Legal. <code>a[0]</code> is now the very list <code>a</code> names.
+Indexed assignment accepts any value, the same way plain assignment
+always has; nothing distinguishes “a list” from “this particular list”
+as a value, so nothing rejects this.</p>
+</section>
+<section><h2 id="the-rejected-alternative">The Rejected Alternative</h2>
+<p><strong>Reject <code>a[0] = a</code> at assignment.</strong> Checking
+would mean walking the entire right-hand value looking for a reference
+back to the list being assigned into, on every indexed assignment of a
+list value, forever, to guard against something that almost never
+happens.</p>
+</section>
+<section><h2 id="what-was-chosen-instead">What Was Chosen Instead</h2>
+<p><strong>Let <code>==</code> and <code>print</code> tolerate the
+cycle.</strong> Comparing <code>a</code> to itself is the cheap case:
+identity short-circuits before any element is examined, matching how
+Python’s own list <code>==</code> already behaves for <code>a==a</code>.
+Two <em>separately built</em> cycles are never identical, though, and
+Python’s own list <code>==</code> has exactly that gap too:
+<code>a=[0]; a[0]=a; b=[0]; b[0]=b; a==b</code> raises
+<code>RecursionError</code> in plain Python, not just in Vertex.</p>
+</section>
+<section><h2 id="the-real-cost">The Real Cost</h2>
+<p><code>vertex_equal</code> also tracks which pairs of lists are
+currently being compared, and <code>vertex_repr</code> tracks which
+lists are currently being printed; both add one set entry before
+recursing into a list and remove it after, an O(1) cost per list
+visited.</p>
+<p><strong>Not free, but flat.</strong> This adds the same small,
+constant bookkeeping to every list visited, cyclic or not, rather than
+growing with nesting depth the way copying the tracking set at every
+level would. Nothing is added to assignment either way.</p>
+</section>
+<section><h2 id="what-carries-forward">What Carries Forward</h2>
+<p>The <code>"complex"</code> node is already built to extend. The
+<code>(value, status)</code> contract did not change. The only new
+category of decision this chapter introduced was ordering: deciding, for
+the first time, what “the target” means when it is not just a name.
+Chapter 10’s own keyed assignment inherits that same ordering question
+directly, by string key instead of position. Chapter 11 asks a related
+question for call arguments. This chapter is the reason both questions
+already have a precedent to follow instead of a blank page.</p>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>

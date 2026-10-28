@@ -225,7 +225,7 @@ def evaluate(ast, environment):
 
     if ast["tag"] == "complex":
         # Reading: base and index are both evaluated and checked for status
-        # before the access happens. Assignment to the same node shape is
+        # before the access happens. Assignment to the same node form is
         # handled separately, under "assign", where this same read logic
         # is what resolves every level except the last.
         base, status = evaluate(ast["base"], environment)

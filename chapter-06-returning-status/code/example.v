@@ -38,13 +38,14 @@ print(type("42"));
 print(type(answer == 42));
 print("Accepted: " + string(boolean(-2)));
 
-// Short-circuiting does not evaluate an exit on a skipped path.
+// Short-circuiting does not evaluate a skipped path. 1/0 would raise an
+// error if it ran; it never does, so neither assignment ever fails.
 assert answer == 42, "Supplied input should produce 42";
 assert type(ready) == "boolean", "ready should hold a boolean";
-saved = false and exit(9);
-saved = true or exit(9);
+saved = false and (1 / 0);
+saved = true or (1 / 0);
 
-// Propagate exit through addition and assignment without doing either.
-// The runner receives (0, "exit"); no keyboard read or print follows it.
-stopped = exit() + number(input());
+// exit still ends the program immediately, as a statement on its own.
+// The runner receives (0, "exit"); the print that follows never runs.
+exit();
 print("This statement must not run");
