@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Closure Objects and set</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="closure-objects-and-set">Closure Objects and set</h1>
+<p>Lecture 2 Private state and explicit binding updates</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="what-ordinary-assignment-does">What ordinary assignment
+does</h2>
+<pre class="vertex"><code>x = 10;
+function changeLocally() {
+    x = x + 1;
+    return x;
+};
+print(changeLocally());
+print(changeLocally());
+print(x);</code></pre>
+</section>
+<section><h2 id="an-explicit-update-statement">An explicit update statement</h2>
+<pre class="vertex"><code>x = 10;
+function changeOuter() {
+    set x = x + 1;
+    return x;
+};
+print(changeOuter());
+print(changeOuter());
+print(x);</code></pre>
+</section>
+<section><h2 id="the-rules-for-set">The rules for set</h2>
+<p>set x = expression;</p>
+<p>Search the current environment, then its parents. Update the first
+existing binding of x. Raise an error if x does not exist.</p>
+<p>Ordinary x = expression writes locally.</p>
+</section>
+<section><h2 id="nearest-binding-wins">Nearest binding wins</h2>
+<pre class="vertex"><code>x = 100;
+function outer() {
+    x = 10;
+    function inner() { set x = x + 1 };
+    inner();
+    return x;
+};
+print(outer());
+print(x);</code></pre>
+</section>
+<section class="compact"><h2 id="set-respects-shadowing">set respects shadowing</h2>
+<pre class="vertex"><code>x = 100;
+function outer() {
+    x = 10;
+    function inner(x) {
+        set x = x + 1;
+        return x;
+    };
+    print(inner(3));
+    return x;
+};
+print(outer());
+print(x);</code></pre>
+<p>Prints 4, then 10, then 100</p>
+</section>
+<section><h2 id="a-counter-with-a-captured-binding">A counter with a captured
+binding</h2>
+<pre class="vertex"><code>function makeCounter() {
+    count = 0;
+    return function() {
+        set count = count + 1;
+        return count;
+    };
+};
+next = makeCounter();
+print(next());
+print(next());</code></pre>
+</section>
+<section><h2 id="two-methods-one-private-environment">Two methods, one private
+environment</h2>
+<pre class="vertex"><code>function makeCounter() {
+    count = 0;
+    return {
+        &quot;increment&quot;: function() {
+            set count = count + 1;
+            return count;
+        },
+        &quot;value&quot;: function() { return count }
+    };
+}</code></pre>
+</section>
+<section><h2 id="independent-instances">Independent instances</h2>
+<pre class="vertex"><code>a = makeCounter();
+b = makeCounter();
+print(a.increment());
+print(a.increment());
+print(a.value());
+print(b.value());</code></pre>
+<p>One factory call creates one private count binding.</p>
+</section>
+<section><h2 id="the-object-correspondence">The object correspondence</h2>
+<p>Factory call: construction</p>
+<p>Retained bindings: instance state</p>
+<p>Returned functions: methods</p>
+<p>Returned record: public interface</p>
+</section>
+<section><h2 id="an-extracted-method-keeps-its-state">An extracted method keeps
+its state</h2>
+<pre class="vertex"><code>a = makeCounter();
+increment = a.increment;
+readValue = a.value;
+print(increment());
+print(readValue());</code></pre>
+<p>The closure carries the connection to its instance.</p>
+</section>
+<section><h2 id="returning-capabilities">Returning capabilities</h2>
+<pre class="vertex"><code>readValue = a.value;
+// Pass readValue to another function.
+// It can observe this counter through that function.</code></pre>
+<p>An interface can expose selected operations. Returning the state
+itself exposes more access.</p>
+</section>
+<section><h2 id="binding-update-and-object-mutation">Binding update and object
+mutation</h2>
+<pre class="vertex"><code>// Update an existing captured binding
+set count = count + 1;
+
+// Mutate data reached through a binding
+state.count = state.count + 1;
+
+// Assign in the current environment
+count = count + 1;</code></pre>
+</section>
+<section><h2 id="parsing-set">Parsing set</h2>
+<pre class="text"><code>set_statement ::= &quot;set&quot; identifier &quot;=&quot; expression
+
+{&quot;tag&quot;: &quot;set&quot;,
+ &quot;name&quot;: name,
+ &quot;expression&quot;: expression}</code></pre>
+<p>A statement with an identifier target</p>
+</section>
+<section><h2 id="evaluating-set">Evaluating set</h2>
+<pre class="python"><code>destination = environment
+while name not in destination:
+    if PARENT_KEY not in destination:
+        raise NameError(...)
+    destination = destination[PARENT_KEY]
+value, status = evaluate(expression, environment)
+if status is not None:
+    return value, status
+destination[name] = value</code></pre>
+</section>
+<section><h2 id="practice-reset-and-step">Practice: reset and step</h2>
+<p>Extend makeCounter(start, step).</p>
+<p>next() adds step and returns the new value. value() reads the current
+value. reset() restores start.</p>
+<p>What should two independent instances print?</p>
+</section>
+<section><h2 id="design-questions">Design questions</h2>
+<p>Should an update create a missing variable?</p>
+<p>Which binding should shadowing select?</p>
+<p>Which references should a factory expose?</p>
+<p>How long can a retained environment remain reachable?</p>
+</section></div></div><script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>
