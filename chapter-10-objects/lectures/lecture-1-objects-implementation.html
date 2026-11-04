@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 10 Deep Dive: Objects</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="objects-deep-dive">Objects: Deep Dive</h1>
+<p>Why the implementation looks like this</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="dot-notation-resolves-at-parse-time">Dot Notation Resolves at
+Parse Time</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    tokens <span class="op">=</span> tokens[<span class="dv">1</span>:]</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="op">!=</span> <span class="st">&quot;identifier&quot;</span>:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">SyntaxError</span>(</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f&quot;Expected a field name after &#39;.&#39;, got </span><span class="sc">{</span>tokens[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    index <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;value&quot;</span>: tokens[<span class="dv">0</span>][<span class="st">&quot;value&quot;</span>]}</span></code></pre></div>
+<p><code>student.score</code> and <code>student["score"]</code> parse
+into the exact same <code>"complex"</code> node. Nothing past this point
+in the parser, and nothing in the evaluator, ever learns that dot syntax
+was used.</p>
+</section>
+<section><h2 id="one-ast-node-branching-by-runtime-type">One AST Node, Branching
+By Runtime Type</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">type</span>(base) <span class="kw">is</span> <span class="bu">dict</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">type</span>(index) <span class="kw">is</span> <span class="kw">not</span> <span class="bu">str</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;Object key must be a string&quot;</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> base[index], <span class="va">None</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">type</span>(base) <span class="kw">not</span> <span class="kw">in</span> (<span class="bu">list</span>, <span class="bu">str</span>):</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;Indexing requires a list or string&quot;</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> base[require_index(index, base)], <span class="va">None</span></span></code></pre></div>
+<p>Reading a <code>"complex"</code> node asks what <code>base</code>
+turned out to be at runtime, not what syntax produced the node. A dict
+gets direct key access; a list or string gets
+<code>require_index</code>’s bounds-checked lookup.</p>
+</section>
+<section><h2 id="growth-rules-differ-by-container-not-by-mechanism">Growth Rules
+Differ By Container, Not By Mechanism</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">type</span>(base) <span class="kw">is</span> <span class="bu">dict</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">type</span>(index) <span class="kw">is</span> <span class="kw">not</span> <span class="bu">str</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;Object key must be a string&quot;</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    key <span class="op">=</span> index</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="cf">elif</span> <span class="bu">type</span>(base) <span class="kw">is</span> <span class="bu">list</span>:</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    key <span class="op">=</span> require_index(index, base)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>destination[key] <span class="op">=</span> value</span></code></pre></div>
+<p>One store, <code>destination[key] = value</code>, same line for both.
+Everything above it decides what <code>key</code> is allowed to be.</p>
+</section>
+<section><h2 id="growth-rules-proof">Growth Rules, Proof</h2>
+<pre class="vertex"><code>a = [1, 2];
+a[5] = 1;</code></pre>
+<p>Raises <code>IndexError: Index out of range</code>.</p>
+<pre class="vertex"><code>student = {&quot;score&quot;: 87};
+student.passed = true;
+print(student);</code></pre>
+<p>Prints <code>{"score": 87, "passed": true}</code>.</p>
+</section>
+<section><h2 id="keys-stay-unevaluated-until-the-evaluator-runs">Keys Stay
+Unevaluated Until the Evaluator Runs</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    key, tokens <span class="op">=</span> parse_expression(tokens)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    tokens <span class="op">=</span> require(tokens, <span class="st">&quot;:&quot;</span>, <span class="st">&quot;Expected &#39;:&#39; after object key&quot;</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    value, tokens <span class="op">=</span> parse_expression(tokens)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    fields.append((key, value))</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div>
+<p><code>parse_object_expression</code> builds an ordered list of
+<code>(key_ast, value_ast)</code> pairs. It cannot build a Python dict
+yet; nothing has evaluated a key.</p>
+</section>
+<section><h2
+id="duplicate-detection-blocks-the-next-value-before-it-runs">Duplicate
+Detection Blocks the Next Value Before It Runs</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> key_ast, value_ast <span class="kw">in</span> ast[<span class="st">&quot;fields&quot;</span>]:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    key, status <span class="op">=</span> evaluate(key_ast, environment)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> status <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> key, status</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">type</span>(key) <span class="kw">is</span> <span class="kw">not</span> <span class="bu">str</span>:</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">TypeError</span>(<span class="st">&quot;Object key must be a string&quot;</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> key <span class="kw">in</span> result:</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&quot;Duplicate object key: </span><span class="sc">{</span>key<span class="sc">!r}</span><span class="ss">&quot;</span>)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    value, status <span class="op">=</span> evaluate(value_ast, environment)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div>
+<p>Each field’s key is fully evaluated and checked before its own value
+expression ever runs.</p>
+</section>
+<section><h2 id="equality-generalized-from-list-only-to-list-and-object">Equality
+Generalized From List-Only to List-and-Object</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Chapter 9</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">type</span>(left) <span class="kw">is</span> <span class="bu">list</span> <span class="kw">and</span> <span class="bu">type</span>(right) <span class="kw">is</span> <span class="bu">list</span>:</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Chapter 10</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">type</span>(left) <span class="kw">in</span> (<span class="bu">list</span>, <span class="bu">dict</span>) <span class="kw">and</span> <span class="bu">type</span>(left) <span class="kw">is</span> <span class="bu">type</span>(right):</span></code></pre></div>
+<p>One extra type in a tuple, plus a same-type check. Everything below
+that line, the identity shortcut and the pair-tracking set, is
+unchanged.</p>
+</section>
+<section><h2 id="display-generalized-the-same-way-as-equality">Display
+Generalized the Same Way as Equality</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">type</span>(value) <span class="kw">in</span> (<span class="bu">list</span>, <span class="bu">dict</span>):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">type</span>(value) <span class="kw">is</span> <span class="bu">dict</span>:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">&quot;{&quot;</span> <span class="op">+</span> <span class="st">&quot;, &quot;</span>.join(...) <span class="op">+</span> <span class="st">&quot;}&quot;</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">&quot;[&quot;</span> <span class="op">+</span> <span class="st">&quot;, &quot;</span>.join(...) <span class="op">+</span> <span class="st">&quot;]&quot;</span></span></code></pre></div>
+<p><code>vertex_repr</code>’s <code>ancestors</code> set is the second
+case of the same widening: it already existed in Chapter 9, for lists;
+this chapter only broadens its type check and adds the dict-construction
+branch.</p>
+</section>
+<section><h2 id="copying-is-new-not-generalized">Copying Is New, Not
+Generalized</h2>
+<p><code>vertex_copy</code> and its <code>memo</code> dict do not exist
+in Chapter 9 at all: no <code>copy</code> keyword, no deep-copy helper,
+nothing to widen. Lists only ever got <code>vertex_equal</code> and
+<code>vertex_repr</code>.</p>
+<p><strong>What carries over is the idea, not the code: track identities
+on a mutable structure, adding an entry before recursing into it.
+<code>comparing</code> and <code>ancestors</code> remove their entry on
+the way back out, since they only need to know what is on the current
+path. <code>memo</code> keeps every entry for the whole
+<code>copy()</code> call, since a sibling reached later still needs to
+find it.</strong></p>
+</section>
+<section><h2 id="without-a-memo-table-sharing-breaks">Without a Memo Table,
+Sharing Breaks</h2>
+<p><img src="slide-assets/dd-diagram-11.svg"
+alt="Without a Memo Table, Sharing Breaks" /></p>
+<p><code>data</code>’s two arrows reach one <code>child</code>. A copier
+with nothing to remember what it has already copied cannot tell its
+second arrow is the same original as its first; it produces two
+unrelated copies instead of one shared one.</p>
+</section>
+<section><h2 id="the-memo-table-keeps-them-one">The Memo Table Keeps Them
+One</h2>
+<p><img src="slide-assets/dd-diagram-12.svg"
+alt="The Memo Table Keeps Them One" /></p>
+<p><strong>The table itself: one entry, <code>child</code>’s identity
+mapped to its copy. Both of <code>mycopy</code>’s arrows land on that
+one entry’s value.</strong> The dashed arrow is a computed lookup by
+<code>id(child)</code>, not a stored reference; the solid arrows are the
+real references.</p>
+</section>
+<section><h2 id="the-memo-table-proof">The Memo Table, Proof</h2>
+<pre class="vertex"><code>child = {&quot;x&quot;: 1};
+data = [child, child];
+mycopy = copy(data);
+mycopy[0].x = 99;
+print(data[0].x);
+print(mycopy[1].x);</code></pre>
+<p><strong><code>data[0].x</code> stays <code>1</code>: the copy did not
+reach back into the original. <code>mycopy[1].x</code> becomes
+<code>99</code>: <code>mycopy[0]</code> and <code>mycopy[1]</code> are
+still the same object.</strong></p>
+</section>
+<section><h2 id="the-same-table-closes-a-cycle">The Same Table Closes a
+Cycle</h2>
+<p><img src="slide-assets/dd-diagram-14.svg"
+alt="The Same Table Closes a Cycle" /></p>
+<pre class="vertex"><code>a = {};
+a.self = a;
+b = copy(a);</code></pre>
+<p>The memo table’s second job: <code>a</code> has no base case for a
+naive copier, since copying <code>a.self</code> means copying
+<code>a</code> again, forever.</p>
+</section>
+<section><h2 id="two-dictionaries-two-different-walks">Two Dictionaries, Two
+Different Walks</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Object field read</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> base[index], <span class="va">None</span></span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Identifier lookup</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> identifier <span class="kw">in</span> env:</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> env[identifier], <span class="va">None</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> PARENT_KEY <span class="kw">in</span> env:</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        env <span class="op">=</span> env[PARENT_KEY]</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&quot;Unknown identifier: </span><span class="sc">{</span>identifier<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<p>Both <code>base</code> and <code>env</code> are plain Python dicts.
+Only one of these reads ever follows a chain.</p>
+</section>
+<section><h2 id="what-carries-forward">What Carries Forward</h2>
+<p>The <code>"complex"</code> node absorbed a second suffix kind with
+one new branch in one existing loop, not a second grammar.
+<code>vertex_equal</code> and <code>vertex_repr</code> absorbed a second
+container kind the same way: widen a type check, reuse the cycle-safety
+bookkeeping as written. <code>vertex_copy</code> is different: it is new
+code, for a need Chapter 9 never had, that reuses the same
+identity-tracking idea rather than any existing implementation. The one
+new question this chapter answered was growth, when is a destination
+allowed to gain a key it never had, and the answer differs by container
+on purpose. Chapter 9 already asked what “the target” means when it is
+not just a name; this chapter answered it a second way, by string key
+instead of position, and left that same question open once more, for
+call arguments, next.</p>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scope and Closures</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="scope-and-closures">Scope and Closures</h1>
+<p>Lecture 1 Where a function finds its names</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="a-function-that-remembers">A function that remembers</h2>
+<pre class="vertex"><code>function makeAdder(a) {
+    return function(b) { return a + b };
+};
+addOne = makeAdder(1);
+print(addOne(2));</code></pre>
+<p>What must survive after makeAdder returns?</p>
+</section>
+<section><h2 id="dynamic-scope-and-lexical-scope">Dynamic scope and lexical
+scope</h2>
+<p>Dynamic scope follows the caller’s environment.</p>
+<p>Lexical scope follows the defining environment.</p>
+<p>Static scope is another name for lexical scope.</p>
+</section>
+<section><h2 id="which-greeting">Which greeting?</h2>
+<pre class="vertex"><code>greeting = &quot;Hello&quot;;
+function showGreeting() { print(greeting) };
+function frenchCaller() {
+    greeting = &quot;Bonjour&quot;;
+    showGreeting();
+};
+frenchCaller();</code></pre>
+</section>
+<section><h2 id="the-parent-link-decides">The parent link decides</h2>
+<pre class="python"><code># Dynamic scope
+call_environment = {PARENT_KEY: environment}
+
+# Lexical scope
+call_environment = {
+    PARENT_KEY: callee[&quot;environment&quot;]
+}</code></pre>
+</section>
+<section><h2 id="a-closure">A closure</h2>
+<pre class="vertex"><code>function(b) { return a + b }</code></pre>
+<p>Function code + defining environment</p>
+<p>b is a parameter of the inner function. a is free in the inner
+function.</p>
+<p>The closure supplies the outer binding of a.</p>
+</section>
+<section><h2 id="tracing-makeadder1">Tracing makeAdder(1)</h2>
+<ol type="1">
+<li><p>Create a factory-call environment with a = 1.</p></li>
+<li><p>Evaluate the inner function expression.</p></li>
+<li><p>Retain that environment in the function value.</p></li>
+<li><p>Return the function.</p></li>
+</ol>
+</section>
+<section><h2 id="tracing-addone2">Tracing addOne(2)</h2>
+<pre class="text"><code>addOne call environment
+    b = 2
+    $PARENT: retained makeAdder environment
+
+retained makeAdder environment
+    a = 1
+    $PARENT: top-level environment</code></pre>
+<p>Lookup b stops locally. Lookup a follows one parent link.</p>
+</section>
+<section><h2 id="separate-factory-calls">Separate factory calls</h2>
+<pre class="vertex"><code>addOne = makeAdder(1);
+addTen = makeAdder(10);
+print(addOne(5));
+print(addTen(5));
+print(addOne(20));</code></pre>
+<p>Same function body. Different retained environments.</p>
+</section>
+<section><h2 id="shadowing">Shadowing</h2>
+<pre class="vertex"><code>x = 100;
+function makeReader(x) {
+    return function() { return x };
+};
+readSeven = makeReader(7);
+print(readSeven());
+print(x);</code></pre>
+</section>
+<section><h2 id="shadowing-leaves-the-outer-binding-intact">Shadowing leaves the
+outer binding intact</h2>
+<pre class="vertex"><code>x = 100;
+function inspect(x) {
+    print(x);
+};
+inspect(7);
+print(x);</code></pre>
+<p>Prints 7, then 100</p>
+</section>
+<section><h2 id="the-lookup-stops-at-the-first-binding">The lookup stops at the
+first binding</h2>
+<table>
+<thead>
+<tr>
+<th>Environment</th>
+<th>Contains x?</th>
+<th>Lookup action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Returned reader’s call frame</td>
+<td>No</td>
+<td>Follow $PARENT</td>
+</tr>
+<tr>
+<td>Retained makeReader frame</td>
+<td>Yes: x = 7</td>
+<td>Return 7 and stop</td>
+</tr>
+<tr>
+<td>Top-level environment</td>
+<td>Yes: x = 100</td>
+<td>Never reached</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="local-assignment-can-introduce-shadowing">Local assignment can
+introduce shadowing</h2>
+<pre class="vertex"><code>x = 10;
+function f() {
+    print(x);
+    x = 20;
+    print(x);
+};
+f();
+print(x);</code></pre>
+<p>Prints 10, then 20, then 10</p>
+</section>
+<section><h2 id="arguments-and-body-use-different-environments">Arguments and
+body use different environments</h2>
+<pre class="vertex"><code>x = 3;
+function addX(n) { return x + n };
+function caller() {
+    x = 20;
+    return addX(x);
+};
+print(caller());</code></pre>
+</section>
+<section><h2 id="capturing-preserves-a-reference">Capturing preserves a
+reference</h2>
+<pre class="vertex"><code>amount = 1;
+function currentAmount() { return amount };
+amount = 9;
+print(currentAmount());</code></pre>
+<p>The environment stays the same. Its binding changes.</p>
+</section>
+<section><h2 id="function-creation-in-the-evaluator">Function creation in the
+evaluator</h2>
+<pre class="python"><code>return {FUNCTION_KEY: function_count,
+        &quot;parameters&quot;: ast[&quot;parameters&quot;],
+        &quot;body&quot;: ast[&quot;body&quot;],
+        &quot;environment&quot;: environment}, None</code></pre>
+</section>
+<section><h2 id="recursion-and-reachability">Recursion and reachability</h2>
+<pre class="vertex"><code>function factorial(n) {
+    if (n == 0) { return 1 };
+    return n * factorial(n - 1);
+};
+print(factorial(6));</code></pre>
+<p>Every recursive call gets a fresh n.</p>
+</section>
+<section><h2 id="practice">Practice</h2>
+<p>Write makeMultiplier(factor). Return a function that multiplies its
+argument by factor.</p>
+<p>Create double and triple. Explain which bindings each call
+creates.</p>
+</section>
+<section><h2 id="questions-for-the-next-lecture">Questions for the next
+lecture</h2>
+<p>How can two functions share private state?</p>
+<p>What should assignment do to an outer binding?</p>
+<p>What makes a group of closures act like an object?</p>
+</section></div></div><script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>

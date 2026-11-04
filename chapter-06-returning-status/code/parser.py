@@ -28,15 +28,21 @@ from tokenizer import tokenize
 #   ===== CHAPTER 3: strings and input are expression forms =====
 #   factor ::= <number> | <string> | <identifier> | "true" | "false" | input_expression
 #          | number_expression | string_expression | boolean_expression
-#          | type_expression | exit_expression | "(" expression ")"
+#          | type_expression | "(" expression ")"
 #   exit_expression ::= "exit" "(" [ expression ] ")"
+#   exit_expression is a statement, not a factor: it cannot appear nested
+#   inside a larger expression, only standing alone. It could propagate
+#   a status from deep inside an expression if it were a factor, but
+#   nothing in this chapter needs that; a later chapter's function calls
+#   give a real way to exit from inside something nested, once a call
+#   exists to be nested in.
 #   input_expression ::= "input" "(" [ expression ] ")"
 #   number_expression ::= "number" "(" expression ")"
 #   string_expression ::= "string" "(" expression ")"
 #   boolean_expression ::= "boolean" "(" expression ")"
 #   type_expression ::= "type" "(" expression ")"
 #
-# input has function-shaped syntax, but this chapter does not implement
+# input has function-call syntax, but this chapter does not implement
 # general function calls, parameters, or function values.
 
 
@@ -62,8 +68,6 @@ def parse_input_expression(tokens):
 
 def parse_factor(tokens):
     token = tokens[0]
-    if token["tag"] == "exit":
-        return parse_exit_expression(tokens)
     # Both keywords become the same kind of literal node, with different values.
     if token["tag"] in ("true", "false"):
         return {"tag": "boolean", "value": token["tag"] == "true"}, tokens[1:]

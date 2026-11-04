@@ -1,0 +1,426 @@
+import unittest
+from unittest.mock import patch
+
+import evaluator
+from parser import parse
+from tokenizer import tokenize
+
+
+def exit_node(value=7):
+    return {"tag": "exit", "expression": {"tag": "number", "value": value}}
+
+
+class ListTests(unittest.TestCase):
+    def run_source(self, source, environment=None):
+        if environment is None:
+            environment = {}
+        result, environment = evaluator.evaluate_source(source, environment)
+        return result, environment
+
+    def run_mixed(self, parts, environment=None):
+        # Each part is either a source string, parsed normally, or an AST
+        # dict, standing in for syntax exit can no longer produce since it
+        # cannot nest inside a larger expression. Both kinds of statement
+        # run together in one program, the same as evaluate_source would.
+        statements = []
+        for part in parts:
+            if isinstance(part, str):
+                statements.extend(parse(tokenize(part))["statements"]["statements"])
+            else:
+                statements.append(part)
+        if environment is None:
+            environment = {}
+        ast = {"tag": "program",
+               "statements": {"tag": "statement_list", "statements": statements}}
+        return evaluator.evaluate(ast, environment), environment
+
+    # ===== Literals =====
+
+    def test_empty_list(self):
+        result, env = self.run_source('a=[]')
+        self.assertEqual(result, (None, None))
+        self.assertEqual(env['a'], [])
+
+    def test_nonempty_mixed_list(self):
+        _, env = self.run_source('a=[1, "two", true]')
+        self.assertEqual(env['a'], [1, 'two', True])
+
+    def test_elements_evaluated_in_source_order(self):
+        with patch('builtins.input', side_effect=['first', 'second']) as fake_input:
+            _, env = self.run_source('a=[input(), input()]')
+        self.assertEqual(env['a'], ['first', 'second'])
+        self.assertEqual(fake_input.call_count, 2)
+
+    def test_nested_list_literal(self):
+        _, env = self.run_source('a=[[1, 2], [3, 4]]')
+        self.assertEqual(env['a'], [[1, 2], [3, 4]])
+
+    # ===== Indexing (read) =====
+
+    def test_index_read(self):
+        _, env = self.run_source('a=[10, 20, 30]; x=a[1]')
+        self.assertEqual(env['x'], 20)
+
+    def test_nested_indexing(self):
+        _, env = self.run_source('m=[[1, 2], [3, 4]]; x=m[1][0]')
+        self.assertEqual(env['x'], 3)
+
+    def test_whole_number_float_index_accepted(self):
+        _, env = self.run_source('a=[1, 2, 3]; x=a[1.0]')
+        self.assertEqual(env['x'], 2)
+
+    def test_fractional_index_rejected(self):
+        with self.assertRaises(TypeError):
+            self.run_source('a=[1, 2, 3]; x=a[1.5]')
+
+    def test_boolean_index_rejected(self):
+        # bool is an int subclass in Python; Vertex must not let that leak in.
+        with self.assertRaises(TypeError):
+            self.run_source('a=[1, 2, 3]; x=a[true]')
+
+    def test_string_index_rejected(self):
+        with self.assertRaises(TypeError):
+            self.run_source('a=[1, 2, 3]; x=a["0"]')
+
+    def test_negative_index_rejected(self):
+        with self.assertRaises(IndexError):
+            self.run_source('a=[1, 2, 3]; x=a[-1]')
+
+    def test_out_of_range_index_rejected(self):
+        with self.assertRaises(IndexError):
+            self.run_source('a=[1, 2, 3]; x=a[3]')
+
+    def test_indexing_a_non_list_rejected(self):
+        with self.assertRaises(TypeError):
+            self.run_source('a=5; x=a[0]')
+
+    # ===== Indexed assignment (write) =====
+
+    def test_indexed_assignment(self):
+        _, env = self.run_source('a=[1, 2, 3]; a[0]=99')
+        self.assertEqual(env['a'], [99, 2, 3])
+
+    def test_nested_indexed_assignment(self):
+        _, env = self.run_source('m=[[1, 2], [3, 4]]; m[1][0]=99')
+        self.assertEqual(env['m'], [[1, 2], [99, 4]])
+
+    def test_indexed_assignment_out_of_range_does_not_grow(self):
+        with self.assertRaises(IndexError):
+            self.run_source('a=[1, 2, 3]; a[5]=1')
+
+    def test_indexed_assignment_requires_a_list_base(self):
+        with self.assertRaises(TypeError):
+            self.run_source('a=5; a[0]=1')
+
+    # ===== Mutation vs. rebinding =====
+
+    def test_indexed_assignment_mutates_through_every_alias(self):
+        _, env = self.run_source('a=[1, 2]; b=a; b[0]=99')
+        self.assertEqual(env['a'], [99, 2])
+        self.assertIs(env['a'], env['b'])
+
+    def test_rebinding_does_not_affect_the_alias(self):
+        _, env = self.run_source('a=[1, 2]; b=a; a=[9, 9]')
+        self.assertEqual(env['a'], [9, 9])
+        self.assertEqual(env['b'], [1, 2])
+        self.assertIsNot(env['a'], env['b'])
+
+    def test_indexed_assignment_mutates_a_list_in_an_enclosing_environment(self):
+        # Indexed assignment resolves its target by reading it, and reads
+        # have searched outward through $PARENT since Chapter 6. No new
+        # code made this possible; a child environment is enough to show it.
+        parent = {'a': [1, 2]}
+        child = {evaluator.PARENT_KEY: parent}
+        self.run_source('a[0] = 99', child)
+        self.assertEqual(parent['a'], [99, 2])
+        self.assertNotIn('a', child)
+
+    def test_plain_rebinding_shadows_instead_of_reaching_an_enclosing_environment(self):
+        parent = {'a': [1, 2]}
+        child = {evaluator.PARENT_KEY: parent}
+        self.run_source('a = [9, 9]', child)
+        self.assertEqual(parent['a'], [1, 2])
+        self.assertEqual(child['a'], [9, 9])
+
+    def test_parent_key_is_an_illegal_identifier(self):
+        # evaluator.PARENT_KEY is the plain string "$PARENT". No Vertex
+        # identifier can ever equal it: "$" cannot start one, so it is
+        # not a token the tokenizer accepts anywhere, not just as an
+        # identifier's first character.
+        self.assertEqual(evaluator.PARENT_KEY, "$PARENT")
+        with self.assertRaises(SyntaxError):
+            tokenize("$")
+
+    def test_dollar_parent_in_an_environment_is_always_the_real_parent_link(self):
+        # A dict handed to evaluate_source as the environment argument is
+        # always an environment; there is no separate "object mode" for
+        # that argument. So a "$PARENT" key there is always the real
+        # parent link, by definition, not something to guard against. An
+        # object's own "$PARENT" field stays safe for a different reason:
+        # object field reads will do a direct base[key] lookup and never
+        # hand the object to evaluate_source as an environment. That
+        # boundary is not code yet, since object field access is not
+        # implemented, so it cannot be tested directly until it is.
+        parent = {'x': 1}
+        child = {evaluator.PARENT_KEY: parent}
+        _, out = self.run_source('y = x;', child)
+        self.assertEqual(out['y'], 1)
+
+    def test_concatenation_produces_an_independent_list(self):
+        _, env = self.run_source('a=[1, 2]; b=[3, 4]; c=a+b; c[0]=99')
+        self.assertEqual(env['a'], [1, 2])
+        self.assertEqual(env['b'], [3, 4])
+        self.assertEqual(env['c'], [99, 2, 3, 4])
+
+    def test_arithmetic_other_than_plus_rejects_lists(self):
+        for operator in ('-', '*', '/'):
+            with self.subTest(operator=operator):
+                with self.assertRaises(TypeError):
+                    self.run_source(f'a=[1, 2] {operator} [3, 4]')
+
+    def test_plus_requires_both_operands_to_be_lists(self):
+        with self.assertRaises(TypeError):
+            self.run_source('a=[1, 2] + 3')
+
+    # ===== Equality =====
+
+    def test_structural_equality(self):
+        result, _ = self.run_source('x=[1, 2] == [1, 2]')
+        self.assertEqual(result, (None, None))
+
+    def test_equality_checks_length(self):
+        _, env = self.run_source('x=[1, 2] == [1, 2, 3]')
+        self.assertEqual(env['x'], False)
+
+    def test_equality_preserves_true_is_not_one_when_nested(self):
+        _, env = self.run_source('x=[true] == [1]; y=[1] == [true]')
+        self.assertEqual(env['x'], False)
+        self.assertEqual(env['y'], False)
+
+    def test_nested_list_equality(self):
+        _, env = self.run_source('x=[1, [2, 3]] == [1, [2, 3]]; y=[1, [2, 3]] == [1, [2, 4]]')
+        self.assertEqual(env['x'], True)
+        self.assertEqual(env['y'], False)
+
+    def test_equality_does_not_use_python_list_equality_directly(self):
+        # A regression guard: Python's [True] == [1] is True, which Vertex
+        # must not expose.
+        _, env = self.run_source('x=[true, false] == [1, 0]')
+        self.assertEqual(env['x'], False)
+
+    def test_ordering_comparisons_reject_lists(self):
+        for operator in ('<', '<=', '>', '>='):
+            with self.subTest(operator=operator):
+                with self.assertRaises(TypeError):
+                    self.run_source(f'x=[1] {operator} [2]')
+
+    # ===== Cyclic lists =====
+    # Indexed assignment can make a list contain itself (a[0] = a). Chapter
+    # 9 allows this rather than detecting and rejecting it; equality and
+    # printing must still terminate instead of recursing forever.
+
+    def test_self_referential_list_equals_itself(self):
+        _, env = self.run_source('a=[0]; a[0]=a; x = a == a')
+        self.assertEqual(env['x'], True)
+
+    def test_self_referential_list_prints_with_ellipsis(self):
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.run_source('a=[0]; a[0]=a; print(a)')
+        self.assertEqual(output.getvalue(), '[[...]]\n')
+
+    def test_indirect_two_list_cycle_prints_with_ellipsis(self):
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.run_source('a=[0]; b=[a]; a[0]=b; print(a)')
+        self.assertEqual(output.getvalue(), '[[[...]]]\n')
+
+    def test_two_distinct_equal_cycles_compare_equal(self):
+        # Identity alone only covers comparing a cycle to itself; two
+        # separately built cycles need pair tracking, not just identity.
+        _, env = self.run_source('a=[1,0]; a[1]=a; b=[1,0]; b[1]=b; x = a == b')
+        self.assertEqual(env['x'], True)
+
+    def test_two_distinct_cycles_with_different_payload_compare_unequal(self):
+        _, env = self.run_source('a=[1,0]; a[1]=a; b=[2,0]; b[1]=b; x = a == b')
+        self.assertEqual(env['x'], False)
+
+    def test_two_distinct_cycles_with_different_length_compare_unequal(self):
+        _, env = self.run_source('a=[1,0]; a[1]=a; b=[1,0,0]; b[1]=b; x = a == b')
+        self.assertEqual(env['x'], False)
+
+    def test_shared_non_cyclic_sublist_still_prints_in_full(self):
+        # A regression guard: the same sublist appearing twice as a sibling
+        # is sharing, not a cycle, and must print in full both times.
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.run_source('x=[1, 2]; a=[x, x]; print(a)')
+        self.assertEqual(output.getvalue(), '[[1, 2], [1, 2]]\n')
+
+    # ===== length() =====
+
+    def test_length_of_a_list(self):
+        _, env = self.run_source('x=length([1, 2, 3])')
+        self.assertEqual(env['x'], 3)
+
+    def test_length_of_empty_list(self):
+        _, env = self.run_source('x=length([])')
+        self.assertEqual(env['x'], 0)
+
+    def test_length_rejects_non_list(self):
+        with self.assertRaises(TypeError):
+            self.run_source('x=length(5)')
+
+    # ===== type(), print(), string() =====
+
+    def test_type_of_a_list(self):
+        _, env = self.run_source('x=type([1, 2])')
+        self.assertEqual(env['x'], 'list')
+
+    def test_print_quotes_strings_inside_a_list(self):
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.run_source('print([1, "hi", true, [2, 3]])')
+        self.assertEqual(output.getvalue(), '[1, "hi", true, [2, 3]]\n')
+
+    def test_print_of_a_bare_string_is_still_unquoted(self):
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.run_source('print("hi")')
+        self.assertEqual(output.getvalue(), 'hi\n')
+
+    def test_string_conversion_of_a_list(self):
+        _, env = self.run_source('x=string([1, "hi"])')
+        self.assertEqual(env['x'], '[1, "hi"]')
+
+    def test_number_and_boolean_conversion_reject_lists(self):
+        with self.assertRaises(TypeError):
+            self.run_source('x=number([1])')
+        with self.assertRaises(TypeError):
+            self.run_source('x=boolean([1])')
+
+    # ===== Traversal =====
+
+    def test_traverse_with_while_and_length(self):
+        source = '''
+            a=[3, 1, 4, 1, 5];
+            total=0;
+            i=0;
+            while (i < length(a)) {
+                total=total+a[i];
+                i=i+1;
+            };
+        '''
+        _, env = self.run_source(source)
+        self.assertEqual(env['total'], 14)
+
+    # ===== Status propagation: exit injected at every position =====
+    # exit can no longer sit inside a larger expression in real source --
+    # it cannot nest inside any expression, only stand alone as a statement
+    # -- so each case below builds the surrounding node directly instead of
+    # parsing it, to check the evaluator's own propagation independent of
+    # what the parser currently admits as legal source text.
+
+    def test_exit_from_a_list_element_stops_later_elements(self):
+        node = {"tag": "assign", "target": {"tag": "identifier", "value": "a"},
+               "expression": {"tag": "list", "items": [
+                   {"tag": "number", "value": 1}, exit_node(7),
+                   {"tag": "input", "prompt": None}]}}
+        with patch('builtins.input') as fake_input:
+            result = evaluator.evaluate(node, {})
+        self.assertEqual(result, (7, 'exit'))
+        fake_input.assert_not_called()
+
+    def test_exit_from_the_index_base_propagates(self):
+        node = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+               "expression": {"tag": "complex", "base": exit_node(7),
+                             "index": {"tag": "input", "prompt": None}}}
+        env = {}
+        with patch('builtins.input') as fake_input:
+            result = evaluator.evaluate(node, env)
+        self.assertEqual(result, (7, 'exit'))
+        self.assertNotIn('x', env)
+        fake_input.assert_not_called()
+
+    def test_exit_from_an_index_expression_propagates(self):
+        read = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+               "expression": {"tag": "complex",
+                             "base": {"tag": "identifier", "value": "a"},
+                             "index": exit_node(7)}}
+        with patch('builtins.input') as fake_input:
+            result, env = self.run_mixed(['a=[1, 2, 3]', read])
+        self.assertEqual(result, (7, 'exit'))
+        self.assertNotIn('x', env)
+        fake_input.assert_not_called()
+
+    def test_exit_from_indexed_assignment_index_wins_over_the_value(self):
+        # The target's index is resolved before the right-hand value, so an
+        # exit from the index must win even if the value also exits.
+        write = {"tag": "assign",
+                "target": {"tag": "complex", "base": {"tag": "identifier", "value": "a"},
+                           "index": exit_node(6)},
+                "expression": exit_node(999)}
+        result, env = self.run_mixed(['a=[1, 2, 3]', write])
+        self.assertEqual(result, (6, 'exit'))
+        self.assertEqual(env['a'], [1, 2, 3])
+
+    def test_a_side_effect_earlier_in_the_index_survives_a_later_exit(self):
+        # Resolving the target before the value protects the list itself,
+        # not every observable effect, and not the rest of the environment
+        # either: input() also updates __input, and that update is not
+        # undone. A side effect that runs before exit is reached stands.
+        write = {"tag": "assign",
+                "target": {"tag": "complex", "base": {"tag": "identifier", "value": "a"},
+                           "index": {"tag": "+",
+                                    "left": {"tag": "number_conversion",
+                                            "expression": {"tag": "input", "prompt": None}},
+                                    "right": exit_node(6)}},
+                "expression": exit_node(999)}
+        with patch('builtins.input', side_effect=['42']) as fake_input:
+            result, env = self.run_mixed(['a=[1, 2, 3]', write])
+        self.assertEqual(result, (6, 'exit'))
+        self.assertEqual(env['a'], [1, 2, 3])
+        fake_input.assert_called_once()
+
+    def test_exit_from_a_chained_assignment_base_wins_over_the_value(self):
+        write = {"tag": "assign",
+                "target": {"tag": "complex",
+                           "base": {"tag": "complex", "base": {"tag": "identifier", "value": "m"},
+                                    "index": exit_node(7)},
+                           "index": {"tag": "number", "value": 0}},
+                "expression": exit_node(999)}
+        result, env = self.run_mixed(['m=[[1, 2], [3, 4]]', write])
+        self.assertEqual(result, (7, 'exit'))
+        self.assertEqual(env['m'], [[1, 2], [3, 4]])
+
+    def test_exit_from_the_right_hand_value_leaves_the_list_unmutated(self):
+        write = {"tag": "assign",
+                "target": {"tag": "complex", "base": {"tag": "identifier", "value": "a"},
+                           "index": {"tag": "number", "value": 0}},
+                "expression": exit_node(9)}
+        result, env = self.run_mixed(['a=[1, 2, 3]', write])
+        self.assertEqual(result, (9, 'exit'))
+        # No pending mutation happens after a special status.
+        self.assertEqual(env['a'], [1, 2, 3])
+
+    def test_exit_from_plain_assignment_value_leaves_target_unset(self):
+        node = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+               "expression": exit_node(9)}
+        env = {}
+        result = evaluator.evaluate(node, env)
+        self.assertEqual(result, (9, 'exit'))
+        self.assertNotIn('x', env)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 11: Functions</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="functions">Functions</h1>
+<p>Parameters, return values, and dynamic scoping</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="chapter-route">Chapter Route</h2>
+<ol type="1">
+<li>Writing a function, return, and null</li>
+<li>Local variables and call frames</li>
+<li>Dynamic scoping, and its real limitation</li>
+<li>Recursion and calls as expressions</li>
+<li>Parsing, evaluation order, and the new boundary error</li>
+</ol>
+</section>
+<section><h2 id="functions-in-vertex">Functions in Vertex</h2>
+<ul>
+<li>A function value is written with <code>function</code>, a parameter
+list, and a body.</li>
+<li>Functions are first-class values: they can be stored, passed, and
+returned like any other value.</li>
+<li>Calling with the wrong number of arguments is a runtime error.</li>
+<li>A function that falls off the end, or returns with no expression,
+produces <code>null</code>.</li>
+</ul>
+</section>
+<section><h2 id="writing-a-function">Writing a Function</h2>
+<pre class="vertex"><code>double = function(x) { return x + x };
+print(double(21));</code></pre>
+<p><strong>Prints <code>42</code>.</strong></p>
+</section>
+<section><h2 id="the-named-form-is-sugar">The Named Form Is Sugar</h2>
+<pre class="vertex"><code>function triple(x) { return x + x + x };
+print(triple(7));</code></pre>
+<p><strong>Prints <code>21</code>. Exactly
+<code>triple = function(x) { return x + x + x };</code></strong></p>
+</section>
+<section><h2 id="arity-is-checked-at-the-call">Arity Is Checked at the Call</h2>
+<pre class="vertex"><code>function add3(a, b, c) { return a + b + c };
+add3(1, 2);
+add3(1, 2, 3, 4);</code></pre>
+<p><strong>Both fail. Only <code>add3(1, 2, 3)</code> matches the three
+declared parameters.</strong></p>
+</section>
+<section><h2 id="return-stops-the-body"><code>return</code> Stops the Body</h2>
+<pre class="vertex"><code>function classify(n) {
+    if (n &lt; 0) { return &quot;negative&quot; };
+    if (n == 0) { return &quot;zero&quot; };
+    return &quot;positive&quot;;
+};
+print(classify(-5));
+print(classify(0));
+print(classify(5));</code></pre>
+<p><strong>Prints <code>negative</code>, <code>zero</code>, then
+<code>positive</code>.</strong></p>
+</section>
+<section><h2 id="falling-off-the-end">Falling Off the End</h2>
+<pre class="vertex"><code>function announce() { print(&quot;starting&quot;) };
+print(announce());</code></pre>
+<p><strong>Prints <code>starting</code>, then
+<code>null</code>.</strong></p>
+</section>
+<section><h2 id="null-is-a-real-value"><code>null</code> Is a Real Value</h2>
+<pre class="vertex"><code>print(null);
+print(null == null);
+print(type(null));</code></pre>
+<p><strong>Prints <code>null</code>, then <code>true</code>, then
+<code>null</code>.</strong></p>
+</section>
+<section><h2 id="local-variables-and-call-frames">Local Variables and Call
+Frames</h2>
+<pre class="vertex"><code>function f(x) {
+    y = x * 2;
+    return y + 1;
+};
+print(f(5));</code></pre>
+<p><strong>Prints <code>11</code>.</strong></p>
+</section>
+<section><h2 id="each-call-gets-its-own-frame">Each Call Gets Its Own Frame</h2>
+<pre class="vertex"><code>function f(x) {
+    doubled = x * 2;
+    return doubled;
+};
+a = f(3);
+b = f(100);
+print(a);
+print(b);</code></pre>
+<p><strong>Prints <code>6</code>, then <code>200</code>.</strong></p>
+</section>
+<section><h2 id="dynamic-scoping">Dynamic Scoping</h2>
+<pre class="vertex"><code>function showGreeting() { print(greeting) };
+function englishCaller() { greeting = &quot;Hello&quot;; showGreeting() };
+function frenchCaller() { greeting = &quot;Bonjour&quot;; showGreeting() };
+englishCaller();
+frenchCaller();</code></pre>
+<p><strong>Prints <code>Hello</code>, then
+<code>Bonjour</code>.</strong></p>
+</section>
+<section><h2 id="following-the-parent-chain">Following the <code>$PARENT</code>
+Chain</h2>
+<p><img src="slide-assets/diagram-13.svg"
+alt="Following the $PARENT Chain" /></p>
+<p><strong><code>showGreeting</code>’s frame chains back through whoever
+called it.</strong></p>
+</section>
+<section><h2 id="the-real-limitation">The Real Limitation</h2>
+<pre class="vertex"><code>function makeAdder(a) {
+    return function(b) { return a + b };
+};
+y = makeAdder(1)(2);</code></pre>
+<p><strong>Raises <code>Unknown identifier: a</code>.</strong></p>
+</section>
+<section><h2 id="recursion">Recursion</h2>
+<pre class="vertex"><code>function factorial(n) {
+    if (n == 0) { return 1 };
+    return n * factorial(n - 1);
+};
+print(factorial(6));</code></pre>
+<p><strong>Prints <code>720</code>.</strong></p>
+</section>
+<section><h2 id="calls-as-expressions">Calls as Expressions</h2>
+<pre class="vertex"><code>function square(x) { return x * x };
+print(1 + square(3) + 1);
+
+function isPositive(x) { return x &gt; 0 };
+if (isPositive(5)) { print(&quot;5 is positive&quot;) }</code></pre>
+<p><strong>Prints <code>11</code>, then
+<code>5 is positive</code>.</strong></p>
+</section>
+<section><h2 id="chained-calls">Chained Calls</h2>
+<pre class="vertex"><code>function pair() { return [10, 20] };
+print(pair()[1]);
+
+function record() { return {&quot;value&quot;: 99} };
+print(record().value);
+
+function makeAdder() { return function(a, b) { return a + b } };
+print(makeAdder()(3, 4));</code></pre>
+<p><strong>Prints <code>20</code>, then <code>99</code>, then
+<code>7</code>.</strong></p>
+</section>
+<section><h2 id="function-values-types-and-operations">Function Values: Types and
+Operations</h2>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Function behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type(function(x) { return x })</code></td>
+<td>Returns <code>"function"</code></td>
+</tr>
+<tr>
+<td><code>string(f)</code>, <code>print(f)</code></td>
+<td>Displays as <code>&lt;function&gt;</code></td>
+</tr>
+<tr>
+<td><code>f == g</code></td>
+<td><code>true</code> only when <code>f</code> and <code>g</code> are
+the same function value</td>
+</tr>
+<tr>
+<td>Arithmetic, ordering comparisons</td>
+<td>Type error</td>
+</tr>
+<tr>
+<td><code>length</code>, <code>head</code>, <code>tail</code>,
+<code>slice</code>, indexing</td>
+<td>Type error</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="parsing-the-new-syntax">Parsing the New Syntax</h2>
+<pre class="text"><code>function_expression ::= &quot;function&quot;
+                         &quot;(&quot; [ identifier { &quot;,&quot; identifier } ] &quot;)&quot; block
+function_definition ::= &quot;function&quot; identifier
+                         &quot;(&quot; [ identifier { &quot;,&quot; identifier } ] &quot;)&quot; block
+return_statement     ::= &quot;return&quot; [ expression ]
+call_suffix          ::= &quot;(&quot; [ expression { &quot;,&quot; expression } ] &quot;)&quot;</code></pre>
+<p><strong><code>call_suffix</code> extends the same suffix chain
+<code>[</code> and <code>.</code> already use.</strong></p>
+</section>
+<section><h2 id="assignment-is-now-an-expression">Assignment Is Now an
+Expression</h2>
+<pre class="text"><code>expression ::= logic_or [ &quot;=&quot; expression ]</code></pre>
+<pre class="vertex"><code>x = y = 1;</code></pre>
+<p><strong>Right-associative: <code>y</code> is assigned first, and that
+assignment’s own value becomes what <code>x</code>
+receives.</strong></p>
+</section>
+<section><h2 id="one-ast-named-form-resolves">One AST, Named Form Resolves</h2>
+<p><img src="slide-assets/diagram-21.svg"
+alt="One AST, Named Form Resolves" /></p>
+<p><strong><code>function_definition</code> resolves at parse time into
+this same tree.</strong></p>
+</section>
+<section><h2 id="evaluation-order-and-status">Evaluation Order and Status</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Body’s status</th>
+<th>Call reports</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"return"</code></td>
+<td>The returned value, with no status: the call finished normally</td>
+</tr>
+<tr>
+<td><code>None</code> (fell off the end)</td>
+<td><code>null</code>, with no status</td>
+</tr>
+<tr>
+<td><code>"exit"</code></td>
+<td>Passed outward unchanged, the same as it passes outward through a
+loop</td>
+</tr>
+<tr>
+<td><code>"break"</code> or <code>"continue"</code></td>
+<td>A specific error: neither one has a loop left to belong to</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="a-new-boundary-error">A New Boundary Error</h2>
+<pre class="vertex"><code>function f() { break };
+f();</code></pre>
+<p><strong>Raises <code>'break' used outside a loop</code>.</strong></p>
+</section>
+<section><h2 id="considerations">Considerations</h2>
+<p><strong>A function’s own value retains only its parameters and body –
+nothing about where it was defined.</strong></p>
+<p><strong>Dynamic scoping resolves a free name by looking at the
+caller, not at wherever the function was written.</strong></p>
+<p><strong><code>break</code> and <code>continue</code> are rejected at
+both boundaries; a bare <code>return</code> is rejected only at the
+program boundary, where there is no call left to consume
+it.</strong></p>
+</section>
+<section><h2 id="working-with-functions">Working with Functions</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type(function(x) { return x })</code></td>
+<td><code>"function"</code></td>
+</tr>
+<tr>
+<td><code>type(null)</code></td>
+<td><code>"null"</code></td>
+</tr>
+<tr>
+<td>Calling with the wrong number of arguments</td>
+<td>Runtime error</td>
+</tr>
+<tr>
+<td>Falling off the end, or a bare <code>return</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>break</code> or <code>continue</code> with no enclosing
+loop</td>
+<td>Specific boundary error</td>
+</tr>
+</tbody>
+</table>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>

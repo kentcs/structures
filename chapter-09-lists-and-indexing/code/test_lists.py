@@ -6,12 +6,33 @@ from parser import parse
 from tokenizer import tokenize
 
 
+def exit_node(value=7):
+    return {"tag": "exit", "expression": {"tag": "number", "value": value}}
+
+
 class ListTests(unittest.TestCase):
     def run_source(self, source, environment=None):
         if environment is None:
             environment = {}
         result, environment = evaluator.evaluate_source(source, environment)
         return result, environment
+
+    def run_mixed(self, parts, environment=None):
+        # Each part is either a source string, parsed normally, or an AST
+        # dict, standing in for syntax exit can no longer produce since it
+        # cannot nest inside a larger expression. Both kinds of statement
+        # run together in one program, the same as evaluate_source would.
+        statements = []
+        for part in parts:
+            if isinstance(part, str):
+                statements.extend(parse(tokenize(part))["statements"]["statements"])
+            else:
+                statements.append(part)
+        if environment is None:
+            environment = {}
+        ast = {"tag": "program",
+               "statements": {"tag": "statement_list", "statements": statements}}
+        return evaluator.evaluate(ast, environment), environment
 
     # ===== Literals =====
 
@@ -281,22 +302,40 @@ class ListTests(unittest.TestCase):
 
     # ===== Status propagation: exit injected at every position =====
 
+    # exit can no longer sit inside a larger expression in real source --
+    # it cannot nest inside any expression, only stand alone as a statement
+    # -- so each case below builds the surrounding node directly instead of
+    # parsing it, to check the evaluator's own propagation independent of
+    # what the parser currently admits as legal source text.
+
     def test_exit_from_a_list_element_stops_later_elements(self):
+        node = {"tag": "assign", "target": {"tag": "identifier", "value": "a"},
+               "expression": {"tag": "list", "items": [
+                   {"tag": "number", "value": 1}, exit_node(7),
+                   {"tag": "input", "prompt": None}]}}
         with patch('builtins.input') as fake_input:
-            result, _ = self.run_source('a=[1, exit(7), input()]')
+            result = evaluator.evaluate(node, {})
         self.assertEqual(result, (7, 'exit'))
         fake_input.assert_not_called()
 
     def test_exit_from_the_index_base_propagates(self):
+        node = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+               "expression": {"tag": "complex", "base": exit_node(7),
+                             "index": {"tag": "input", "prompt": None}}}
+        env = {}
         with patch('builtins.input') as fake_input:
-            result, env = self.run_source('x = exit(7)[input()]')
+            result = evaluator.evaluate(node, env)
         self.assertEqual(result, (7, 'exit'))
         self.assertNotIn('x', env)
         fake_input.assert_not_called()
 
     def test_exit_from_an_index_expression_propagates(self):
+        read = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+               "expression": {"tag": "complex",
+                             "base": {"tag": "identifier", "value": "a"},
+                             "index": exit_node(7)}}
         with patch('builtins.input') as fake_input:
-            result, env = self.run_source('a=[1, 2, 3]; x=a[exit(7)]')
+            result, env = self.run_mixed(['a=[1, 2, 3]', read])
         self.assertEqual(result, (7, 'exit'))
         self.assertNotIn('x', env)
         fake_input.assert_not_called()
@@ -304,7 +343,11 @@ class ListTests(unittest.TestCase):
     def test_exit_from_indexed_assignment_index_wins_over_the_value(self):
         # The target's index is resolved before the right-hand value, so an
         # exit from the index must win even if the value also exits.
-        result, env = self.run_source('a=[1, 2, 3]; a[exit(6)]=exit(999)')
+        write = {"tag": "assign",
+                "target": {"tag": "complex", "base": {"tag": "identifier", "value": "a"},
+                           "index": exit_node(6)},
+                "expression": exit_node(999)}
+        result, env = self.run_mixed(['a=[1, 2, 3]', write])
         self.assertEqual(result, (6, 'exit'))
         self.assertEqual(env['a'], [1, 2, 3])
 
@@ -313,26 +356,45 @@ class ListTests(unittest.TestCase):
         # not every observable effect, and not the rest of the environment
         # either: input() also updates __input, and that update is not
         # undone. A side effect that runs before exit is reached stands.
+        write = {"tag": "assign",
+                "target": {"tag": "complex", "base": {"tag": "identifier", "value": "a"},
+                           "index": {"tag": "+",
+                                    "left": {"tag": "number_conversion",
+                                            "expression": {"tag": "input", "prompt": None}},
+                                    "right": exit_node(6)}},
+                "expression": exit_node(999)}
         with patch('builtins.input', side_effect=['42']) as fake_input:
-            result, env = self.run_source(
-                'a=[1, 2, 3]; a[number(input()) + exit(6)]=exit(999)')
+            result, env = self.run_mixed(['a=[1, 2, 3]', write])
         self.assertEqual(result, (6, 'exit'))
         self.assertEqual(env['a'], [1, 2, 3])
         fake_input.assert_called_once()
 
     def test_exit_from_a_chained_assignment_base_wins_over_the_value(self):
-        result, env = self.run_source('m=[[1, 2], [3, 4]]; m[exit(7)][0]=exit(999)')
+        write = {"tag": "assign",
+                "target": {"tag": "complex",
+                           "base": {"tag": "complex", "base": {"tag": "identifier", "value": "m"},
+                                    "index": exit_node(7)},
+                           "index": {"tag": "number", "value": 0}},
+                "expression": exit_node(999)}
+        result, env = self.run_mixed(['m=[[1, 2], [3, 4]]', write])
         self.assertEqual(result, (7, 'exit'))
         self.assertEqual(env['m'], [[1, 2], [3, 4]])
 
     def test_exit_from_the_right_hand_value_leaves_the_list_unmutated(self):
-        result, env = self.run_source('a=[1, 2, 3]; a[0]=exit(9)')
+        write = {"tag": "assign",
+                "target": {"tag": "complex", "base": {"tag": "identifier", "value": "a"},
+                           "index": {"tag": "number", "value": 0}},
+                "expression": exit_node(9)}
+        result, env = self.run_mixed(['a=[1, 2, 3]', write])
         self.assertEqual(result, (9, 'exit'))
         # No pending mutation happens after a special status.
         self.assertEqual(env['a'], [1, 2, 3])
 
     def test_exit_from_plain_assignment_value_leaves_target_unset(self):
-        result, env = self.run_source('x=exit(9)')
+        node = {"tag": "assign", "target": {"tag": "identifier", "value": "x"},
+               "expression": exit_node(9)}
+        env = {}
+        result = evaluator.evaluate(node, env)
         self.assertEqual(result, (9, 'exit'))
         self.assertNotIn('x', env)
 
