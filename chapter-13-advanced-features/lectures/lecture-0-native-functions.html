@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Native Functions</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="native-functions">Native Functions</h1>
+<p>Host implementations as ordinary function values</p>
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="another-useful-operation">Another Useful Operation</h2>
+<p>What must change to add square root?</p>
+<p>A new parser case for every library operation would keep growing the
+language implementation.</p>
+</section>
+<section><h2 id="two-languages-two-jobs">Two Languages, Two Jobs</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Language</th>
+<th>Job</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Vertex</strong></td>
+<td>The program our interpreter runs</td>
+</tr>
+<tr>
+<td><strong>Python (the host)</strong></td>
+<td>The interpreter and its library implementations</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Code examples identify which language executes
+them.</strong></p>
+</section>
+<section><h2 id="the-host-registry-is-a-python-dictionary">The Host Registry Is a
+Python Dictionary</h2>
+<p><strong>Python host</strong></p>
+<pre class="python"><code># code/native_functions.py (excerpt)
+NATIVE_FUNCTIONS = {
+    &quot;math.sqrt&quot;: sqrt,
+    &quot;math.hypot&quot;: hypot,
+}</code></pre>
+<p><strong>String key on the left; Python callable on the
+right.</strong></p>
+</section>
+<section><h2 id="creating-a-native-function">Creating a Native Function</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>sqrt = native(&quot;math.sqrt&quot;, [&quot;x&quot;]);
+print(sqrt(9));</code></pre>
+<p><strong>Prints <code>3.0</code>.</strong></p>
+</section>
+<section><h2 id="names-parameters-and-arity">Names, Parameters, and Arity</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>distance = native(&quot;math.hypot&quot;, [&quot;a&quot;, &quot;b&quot;]);
+print(distance(3, 4));</code></pre>
+<p><strong>Prints <code>5.0</code>.</strong></p>
+</section>
+<section><h2 id="construction-and-invocation">Construction and Invocation</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Work performed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>native("math.sqrt", ["x"])</code></td>
+<td>Look up the Python registry; construct a function</td>
+</tr>
+<tr>
+<td><code>sqrt(9)</code></td>
+<td>Pass 9 to the stored Python callable</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="the-constructor-is-a-value">The Constructor Is a Value</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>connect = native;
+sqrt = connect(&quot;math.sqrt&quot;, [&quot;value&quot;]);
+print(sqrt(36));</code></pre>
+<p><strong>Prints <code>6.0</code>.</strong></p>
+</section>
+<section><h2 id="passing-native-functions">Passing Native Functions</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>function apply(f, x) {
+    return f(x);
+};
+sqrt = native(&quot;math.sqrt&quot;, [&quot;x&quot;]);
+print(apply(sqrt, 25));</code></pre>
+<p><strong>Prints <code>5.0</code>.</strong></p>
+</section>
+<section><h2 id="records-and-closures">Records and Closures</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>function makeOperations() {
+    sqrt = native(&quot;math.sqrt&quot;, [&quot;x&quot;]);
+    return {&quot;root&quot;: sqrt};
+};
+ops = makeOperations();
+print(ops.root(49));</code></pre>
+<p><strong>Prints <code>7.0</code>.</strong></p>
+</section>
+<section><h2 id="python-registers-the-implementation">Python Registers the
+Implementation</h2>
+<p><strong>Python host</strong></p>
+<pre class="python"><code>from native_functions import register_native
+
+def combine(a, b):
+    return a + b
+
+register_native(&quot;combine&quot;, combine)</code></pre>
+<p><strong>Python stores a callable under the key
+<code>"combine"</code>.</strong></p>
+</section>
+<section><h2 id="vertex-obtains-and-calls-it">Vertex Obtains and Calls It</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>f = native(&quot;combine&quot;, [&quot;a&quot;, &quot;b&quot;]);
+print(f(2, 5));</code></pre>
+<p><strong>Prints <code>7</code>, after the Python
+registration.</strong></p>
+</section>
+<section><h2 id="a-registry-key-is-just-a-name">A Registry Key Is Just a
+Name</h2>
+<table>
+<thead>
+<tr>
+<th>Name or value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"math.sqrt"</code></td>
+<td>A string key in the Python registry</td>
+</tr>
+<tr>
+<td>Python <code>sqrt</code></td>
+<td>The registered implementation</td>
+</tr>
+<tr>
+<td>Vertex <code>root</code></td>
+<td>A variable holding a native function value</td>
+</tr>
+</tbody>
+</table>
+<p><strong>No Python import or source evaluation happens in
+<code>native</code>.</strong></p>
+</section>
+<section><h2 id="shared-call-evaluation">Shared Call Evaluation</h2>
+<ol type="1">
+<li>Evaluate the callee.</li>
+<li>Evaluate arguments left to right.</li>
+<li>Check the declared arity.</li>
+<li>Run the Vertex body or invoke the host.</li>
+</ol>
+</section>
+<section><h2 id="crossing-the-value-boundary">Crossing the Value Boundary</h2>
+<table>
+<thead>
+<tr>
+<th>Result</th>
+<th>Accepted?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Null, boolean, number, string, function</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Lists and objects of Vertex values</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Python tuple or datetime instance</td>
+<td>Needs an adapter</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="errors-keep-their-meaning">Errors Keep Their Meaning</h2>
+<p>An unknown registration fails at construction.</p>
+<p>Wrong arity fails before the host invocation.</p>
+<p>Python exceptions propagate to the embedding host.</p>
+</section>
+<section><h2 id="function-identity">Function Identity</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>f = native(&quot;math.sqrt&quot;, [&quot;x&quot;]);
+g = native(&quot;math.sqrt&quot;, [&quot;x&quot;]);
+print(f == g);
+print(copy(f) == f);
+print(type(f));</code></pre>
+<p><strong>Prints <code>false</code>, <code>true</code>, then
+<code>function</code>.</strong></p>
+</section>
+<section><h2 id="a-portable-interface">A Portable Interface</h2>
+<p>Vertex source identifies an operation.</p>
+<p>The interpreter connects it to its host implementation.</p>
+<p>Python and Go hosts can implement the same contract.</p>
+</section>
+<section><h2 id="practice">Practice</h2>
+<p><strong>Vertex: call a native square-root function
+twice.</strong></p>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>function applyTwice(f, x) {
+    return f(f(x));
+};
+sqrt = native(&quot;math.sqrt&quot;, [&quot;x&quot;]);
+print(applyTwice(sqrt, 81));</code></pre>
+<p><strong>Expected result: <code>3.0</code>.</strong></p>
+</section>
+<section><h2 id="the-next-unit-modules">The Next Unit: Modules</h2>
+<p>A file can define Vertex functions, native functions, and data.</p>
+<p>What should importing that program return?</p>
+</section></div></div><script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>
