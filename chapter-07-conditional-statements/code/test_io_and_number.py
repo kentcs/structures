@@ -95,6 +95,40 @@ class InputOutputAndNumberTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual(evaluate_source(source, {'__input': '42'})[1]['x'], '42')
 
+    def test_numbers_are_written_without_exponents(self):
+        # Python would write 1e+16, which Vertex can neither tokenize nor
+        # convert back with number(). Every written number must round-trip.
+        for expression, expected in [('10000000000000000.0', '10000000000000000.0'),
+                                     ('0.0000001', '0.0000001'), ('4/2', '2.0'),
+                                     ('0.1+0.2', '0.30000000000000004')]:
+            with self.subTest(expression=expression):
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    _, env = evaluate_source(
+                        f'value=string({expression});back=number(value);'
+                        f'print({expression})')
+                self.assertEqual(env['value'], expected)
+                self.assertEqual(env['back'], float(expected))
+                self.assertEqual(output.getvalue(), expected + '\n')
+
+    def test_arithmetic_operand_errors(self):
+        for source, error, message in [
+            ('x=-"a"', TypeError, 'Unary minus requires a number'),
+            ('x="a"-"b"', TypeError, '- requires numbers'),
+            ('x="a"/2', TypeError, '/ requires numbers'),
+            ('x="a"+1', TypeError, '+ requires two numbers or two strings'),
+            ('x="a"*"b"', TypeError, '* cannot multiply two strings'),
+            ('x="a"*2.5', TypeError, 'A string can only be repeated a whole number of times'),
+            ('x=-3*"a"', ValueError, 'A string cannot be repeated a negative number of times'),
+            ('x=1/0', ZeroDivisionError, 'division by zero'),
+        ]:
+            with self.subTest(source=source):
+                with self.assertRaises(error) as raised:
+                    evaluate_source(source)
+                self.assertEqual(str(raised.exception), message)
+        _, env = evaluate_source('x="ab"*0;y=0*"ab"')
+        self.assertEqual((env['x'], env['y']), ('', ''))
+
     def test_string_syntax(self):
         for source in ('x=string', 'x=string()', 'x=string(1', 'x=string(1,2)'):
             with self.subTest(source=source), self.assertRaises(SyntaxError):
