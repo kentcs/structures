@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 1: Simple Expressions in Vertex</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="simple-expressions-in-vertex">Simple Expressions in Vertex</h1>
+<p>How <code>3+4*5</code> becomes <code>23</code></p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="running-vertex">Running Vertex</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./vertex</span> <span class="st">&#39;3+4*5&#39;</span></span></code></pre></div>
+<pre class="text"><code>23</code></pre>
+<p>Or read the supplied expression: <code>./vertex example.v</code></p>
+</section>
+<section><h2 id="the-interpreters-stages">The Interpreter’s Stages</h2>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Input</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tokenizer</td>
+<td>Characters</td>
+<td>Tokens</td>
+</tr>
+<tr>
+<td>Parser</td>
+<td>Tokens</td>
+<td>Expression tree</td>
+</tr>
+<tr>
+<td>Evaluator</td>
+<td>Expression tree</td>
+<td>Value</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>tokens <span class="op">=</span> tokenize(expression)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>ast <span class="op">=</span> parse(tokens)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> evaluate(ast)</span></code></pre></div>
+</section>
+<section><h2 id="tokenizing-345">Tokenizing <code>3+4*5</code></h2>
+<table>
+<thead>
+<tr>
+<th>Tag</th>
+<th>Value</th>
+<th>Column</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>number</code></td>
+<td><code>3</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>+</code></td>
+<td></td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>number</code></td>
+<td><code>4</code></td>
+<td>3</td>
+</tr>
+<tr>
+<td><code>*</code></td>
+<td></td>
+<td>4</td>
+</tr>
+<tr>
+<td><code>number</code></td>
+<td><code>5</code></td>
+<td>5</td>
+</tr>
+<tr>
+<td><code>None</code></td>
+<td></td>
+<td>6</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="recognizing-a-number">Recognizing a Number</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">r&quot;</span><span class="er">\</span><span class="co">d*</span><span class="er">\</span><span class="co">.</span><span class="er">\</span><span class="co">d+|</span><span class="er">\</span><span class="co">d+</span><span class="er">\</span><span class="co">.</span><span class="er">\</span><span class="co">d*|</span><span class="er">\</span><span class="co">d+&quot;</span></span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Alternative</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>\d*\.\d+</code></td>
+<td><code>.5</code>, <code>12.5</code></td>
+</tr>
+<tr>
+<td><code>\d+\.\d*</code></td>
+<td><code>5.</code></td>
+</tr>
+<tr>
+<td><code>\d+</code></td>
+<td><code>123</code></td>
+</tr>
+</tbody>
+</table>
+<p>The tokenizer tries patterns at the current position.</p>
+</section>
+<section><h2 id="recognize-and-discard-comments">Recognize and Discard
+Comments</h2>
+<pre class="text"><code>8 / 2 // Divide eight by two.</code></pre>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>(<span class="vs">r&quot;//</span><span class="pp">[^</span><span class="ch">\r\n</span><span class="pp">]</span><span class="op">*</span><span class="vs">&quot;</span>, <span class="st">&quot;comment&quot;</span>),</span></code></pre></div>
+<p><strong>Match comments before division.</strong></p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> current_tag <span class="kw">not</span> <span class="kw">in</span> (<span class="st">&quot;whitespace&quot;</span>, <span class="st">&quot;comment&quot;</span>):</span></code></pre></div>
+<p>The parser sees only <code>8 / 2</code>.</p>
+</section>
+<section><h2 id="tokens-carry-values">Tokens Carry Values</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>{<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;number&quot;</span>, <span class="st">&quot;line&quot;</span>: <span class="dv">1</span>, <span class="st">&quot;column&quot;</span>: <span class="dv">1</span>, <span class="st">&quot;value&quot;</span>: <span class="dv">3</span>}</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> token[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;number&quot;</span>:</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">&quot;.&quot;</span> <span class="kw">in</span> value:</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        token[<span class="st">&quot;value&quot;</span>] <span class="op">=</span> <span class="bu">float</span>(value)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        token[<span class="st">&quot;value&quot;</span>] <span class="op">=</span> <span class="bu">int</span>(value)</span></code></pre></div>
+<p>The text <code>"3"</code> becomes <code>3</code>; <code>"12.5"</code>
+becomes <code>12.5</code>.</p>
+</section>
+<section><h2 id="vertexs-expression-grammar">Vertex’s Expression Grammar</h2>
+<pre class="text"><code>expression ::= term { (&quot;+&quot; | &quot;-&quot;) term }
+term ::= unary { (&quot;*&quot; | &quot;/&quot;) unary }
+unary ::= &quot;-&quot; unary | factor
+factor ::= &lt;number&gt; | &quot;(&quot; expression &quot;)&quot;</code></pre>
+<p>Extended Backus-Naur Form (EBNF)</p>
+<p>Braces repeat. A vertical bar separates alternatives.</p>
+</section>
+<section><h2 id="the-tree-for-345">The Tree for <code>3+4*5</code></h2>
+<p><img src="slide-assets/diagram-09.svg"
+alt="The Tree for 3+4*5" /></p>
+<p>The right subtree supplies <code>20</code> to the addition.</p>
+</section>
+<section><h2 id="parsing-a-factor">Parsing a Factor</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> token[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;number&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    node <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;number&quot;</span>, <span class="st">&quot;value&quot;</span>: token[<span class="st">&quot;value&quot;</span>]}</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> node, tokens[<span class="dv">1</span>:]</span></code></pre></div>
+<p>Input: <code>3 + 4</code></p>
+<p>Returned node: <code>3</code><br />
+Remaining tokens: <code>+ 4</code> and the end marker</p>
+</section>
+<section><h2 id="parentheses-re-enter-the-grammar">Parentheses Re-enter the
+Grammar</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> token[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;(&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    node, tokens <span class="op">=</span> parse_expression(tokens[<span class="dv">1</span>:])</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="op">!=</span> <span class="st">&quot;)&quot;</span>:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">SyntaxError</span>(<span class="ss">f&quot;Expected &#39;)&#39;, got </span><span class="sc">{</span>tokens[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> node, tokens[<span class="dv">1</span>:]</span></code></pre></div>
+<p><code>(3+4)*5</code> groups the addition first.</p>
+</section>
+<section><h2 id="building-a-term">Building a Term</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>left, tokens <span class="op">=</span> parse_unary(tokens)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="kw">in</span> [<span class="st">&quot;*&quot;</span>, <span class="st">&quot;/&quot;</span>]:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    op <span class="op">=</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>]</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    right, tokens <span class="op">=</span> parse_unary(tokens[<span class="dv">1</span>:])</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    left <span class="op">=</span> {<span class="st">&quot;tag&quot;</span>: op, <span class="st">&quot;left&quot;</span>: left, <span class="st">&quot;right&quot;</span>: right}</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> left, tokens</span></code></pre></div>
+<p><code>3*-2</code> parses as multiplication with a negated right
+operand.</p>
+</section>
+<section><h2 id="unary-minus">Unary Minus</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;-&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    operand, tokens <span class="op">=</span> parse_unary(tokens[<span class="dv">1</span>:])</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {<span class="st">&quot;tag&quot;</span>: <span class="st">&quot;unary-&quot;</span>, <span class="st">&quot;operand&quot;</span>: operand}, tokens</span></code></pre></div>
+<p><code>-5</code>, <code>3*-2</code>, and <code>-(3+4)</code> all use
+the same rule.</p>
+</section>
+<section><h2 id="requiring-the-whole-expression">Requiring the Whole
+Expression</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>ast, tokens <span class="op">=</span> parse_expression(tokens)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> tokens[<span class="dv">0</span>][<span class="st">&quot;tag&quot;</span>] <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">SyntaxError</span>(<span class="ss">f&quot;Unexpected token: </span><span class="sc">{</span>tokens[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> ast</span></code></pre></div>
+<p><code>3 4</code> must fail after the parser reads <code>3</code>.</p>
+</section>
+<section><h2 id="evaluating-the-tree">Evaluating the Tree</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> ast[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;number&quot;</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> ast[<span class="st">&quot;value&quot;</span>]</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="cf">elif</span> ast[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;+&quot;</span>:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> evaluate(ast[<span class="st">&quot;left&quot;</span>]) <span class="op">+</span> evaluate(ast[<span class="st">&quot;right&quot;</span>])</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="cf">elif</span> ast[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;*&quot;</span>:</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> evaluate(ast[<span class="st">&quot;left&quot;</span>]) <span class="op">*</span> evaluate(ast[<span class="st">&quot;right&quot;</span>])</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="cf">elif</span> ast[<span class="st">&quot;tag&quot;</span>] <span class="op">==</span> <span class="st">&quot;unary-&quot;</span>:</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="op">-</span>evaluate(ast[<span class="st">&quot;operand&quot;</span>])</span></code></pre></div>
+<p>For <code>3+4*5</code>: the children supply <code>3</code> and
+<code>20</code>.</p>
+</section>
+<section><h2 id="where-an-expression-fails">Where an Expression Fails</h2>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Failure</th>
+<th>Stage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>3@4</code></td>
+<td>Unrecognized character</td>
+<td>Tokenizer</td>
+</tr>
+<tr>
+<td><code>3+*4</code></td>
+<td>Missing operand</td>
+<td>Parser</td>
+</tr>
+<tr>
+<td><code>(3+4</code></td>
+<td>Missing closing parenthesis</td>
+<td>Parser</td>
+</tr>
+<tr>
+<td><code>3 4</code></td>
+<td>Extra token</td>
+<td>Parser</td>
+</tr>
+<tr>
+<td><code>3/0</code></td>
+<td>Division by zero</td>
+<td>Evaluator</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="unit-tests-in-python">Unit Tests in Python</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> tokenizer.py</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> parser.py</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> evaluator.py</span></code></pre></div>
+<p>Vertex has no output or assertions yet.</p>
+<p>Python unit tests check its implementation.</p>
+</section>
+<section><h2 id="following-a-wrong-result">Following a Wrong Result</h2>
+<p><strong>Tokens:</strong> Did we recognize the intended values?</p>
+<p><strong>Tree:</strong> Did we group the operations correctly?</p>
+<p><strong>Evaluation:</strong> Did each node compute the right
+value?</p>
+<p>Inspect the intermediate result before changing the code.</p>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>

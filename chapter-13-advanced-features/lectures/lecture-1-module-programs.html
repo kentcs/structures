@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modules Are Programs</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="modules-are-programs">Modules Are Programs</h1>
+<p>The global environment becomes an object</p>
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="a-module-file">A Module File</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>// file: modules/geometry.v
+factor = 2;
+function scale(x) { return factor * x };
+function square(x) { return x * x };
+sqrt = native(&quot;math.sqrt&quot;, [&quot;x&quot;]);
+distance = native(&quot;math.hypot&quot;, [&quot;a&quot;, &quot;b&quot;]);</code></pre>
+</section>
+<section><h2 id="importing-the-program">Importing the Program</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>geometry = import(&quot;modules/geometry.v&quot;);
+print(geometry.factor);
+print(geometry.square(5));
+print(geometry.sqrt(9));</code></pre>
+<p><strong>Prints <code>2</code>, <code>25</code>, then
+<code>3.0</code>.</strong></p>
+</section>
+<section><h2 id="the-module-object">The Module Object</h2>
+<table>
+<thead>
+<tr>
+<th>Global binding</th>
+<th>Object field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>factor = 2</code></td>
+<td><code>geometry.factor</code></td>
+</tr>
+<tr>
+<td><code>function scale(x) ...</code></td>
+<td><code>geometry.scale</code></td>
+</tr>
+<tr>
+<td><code>sqrt = native(...)</code></td>
+<td><code>geometry.sqrt</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="one-environment-two-access-paths">One Environment, Two Access
+Paths</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>geometry = import(&quot;modules/geometry.v&quot;);
+geometry.factor = 3;
+print(geometry.scale(5));</code></pre>
+<p><strong>Prints <code>15</code>.</strong></p>
+</section>
+<section><h2 id="tracing-the-shared-binding">Tracing the Shared Binding</h2>
+<table>
+<thead>
+<tr>
+<th>Reference</th>
+<th>Destination</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Importer’s <code>geometry</code></td>
+<td>Module globals object</td>
+</tr>
+<tr>
+<td><code>geometry.scale</code></td>
+<td>Vertex function value</td>
+</tr>
+<tr>
+<td><code>scale</code>’s retained environment</td>
+<td>Same module globals object</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="a-stateful-module">A Stateful Module</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>// file: modules/counter.v
+count = 0;
+function next() {
+    set count = count + 1;
+    return count;
+};
+function reset() { set count = 0 };</code></pre>
+</section>
+<section><h2 id="independent-imports">Independent Imports</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>first = import(&quot;modules/counter.v&quot;);
+second = import(&quot;modules/counter.v&quot;);
+print(first.next());
+print(first.next());
+print(second.count);</code></pre>
+<p><strong>Prints <code>1</code>, <code>2</code>, then
+<code>0</code>.</strong></p>
+</section>
+<section><h2 id="an-extracted-function">An Extracted Function</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>counter = import(&quot;modules/counter.v&quot;);
+next = counter.next;
+print(next());
+print(counter.count);</code></pre>
+<p><strong>Prints <code>1</code>, then <code>1</code>.</strong></p>
+</section>
+<section><h2 id="isolation">Isolation</h2>
+<p>The module starts with fresh globals.</p>
+<p>It can use supplied operations.</p>
+<p>It cannot read arbitrary bindings from its caller.</p>
+</section>
+<section><h2 id="relative-file-paths">Relative File Paths</h2>
+<table>
+<thead>
+<tr>
+<th>Importing file</th>
+<th>Requested path</th>
+<th>Loaded file</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>main.v</code></td>
+<td><code>modules/outer.v</code></td>
+<td><code>modules/outer.v</code></td>
+</tr>
+<tr>
+<td><code>modules/outer.v</code></td>
+<td><code>inner.v</code></td>
+<td><code>modules/inner.v</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="program-completion">Program Completion</h2>
+<table>
+<thead>
+<tr>
+<th>Module execution</th>
+<th>Import result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Finishes normally</td>
+<td>Global environment object</td>
+</tr>
+<tr>
+<td>Empty program</td>
+<td>Empty object</td>
+</tr>
+<tr>
+<td>Top-level <code>return</code></td>
+<td>Program error</td>
+</tr>
+<tr>
+<td><code>exit</code></td>
+<td>Propagated evaluator status</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="circular-imports">Circular Imports</h2>
+<pre class="text"><code>a.v imports b.v
+b.v imports a.v</code></pre>
+<p><strong>The loader reports the cycle instead of recursing
+forever.</strong></p>
+</section>
+<section><h2 id="globals-and-host-bookkeeping">Globals and Host Bookkeeping</h2>
+<p>Module fields contain ordinary program bindings.</p>
+<p>Source path and input/output bookkeeping stay in host attributes.</p>
+</section>
+<section><h2 id="copying-does-not-recreate-closures">Copying Does Not Recreate
+Closures</h2>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>geometry = import(&quot;modules/geometry.v&quot;);
+other = copy(geometry);
+other.factor = 9;
+print(other.scale(5));
+print(other.factor);</code></pre>
+<p><strong>Prints <code>10</code>, then <code>9</code>.</strong></p>
+</section>
+<section><h2 id="the-loader">The Loader</h2>
+<ol type="1">
+<li>Resolve the file path and check for a cycle.</li>
+<li>Read and parse a program.</li>
+<li>Evaluate in fresh module globals.</li>
+<li>Return those globals on normal completion.</li>
+</ol>
+</section>
+<section><h2 id="practice">Practice</h2>
+<p>Import two counters.</p>
+<p>Increment the first twice, then reset it. Increment the second
+once.</p>
+<p>What are their count fields?</p>
+</section>
+<section><h2 id="considerations">Considerations</h2>
+<p>Should imports cache instances?</p>
+<p>Should helper globals stay public?</p>
+<p>Which native values require adapters?</p>
+</section></div></div><script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Structure of Programming Languages</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; padding: 48px 24px; }
+        .container { border-radius: 12px; padding-top: 40px; max-width: 75%; width: 100%; }
+        h1 { color: #506be7; margin-bottom: 18px; font-weight: bold; font-size: 42px; line-height: 1.1; }
+        .intro { color: #444; font-size: 17px; line-height: 1.55; margin-bottom: 30px; max-width: 780px; }
+        .chapter-label { color: #764ba2; font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+        .chapter-title { white-space: nowrap; }
+        .toc-section { margin-bottom: 30px; }
+        .toc-section h2 { color: #667eea; font-size: 18px; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #667eea; padding-bottom: 8px; }
+        .toc-link { display: block; padding: 12px 16px; margin-bottom: 8px; background: #f8f9fa; border-left: 4px solid #adaeaf; text-decoration: none; color: #333; border-radius: 4px; transition: all .2s ease; }
+        .toc-link:hover { background: #f9f9fa88; border-left: 4px solid #adaeaf88; }
+        .description { color: #666; font-size: 14px; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Structure of Programming Languages</h1>
+        <p class="intro">This course studies how programming languages are specified and implemented. We build Vertex in small steps, connecting syntax, parsing, evaluation, and runtime behavior.</p>
+            <a href="class-calendar.html" class="toc-link">
+                Class Calendar
+                <div class="description">Weekly topics and remaining Fall 2026 dates.</div>
+            </a>
+            <a href="extras/index.html" class="toc-link">
+                Extras
+                <div class="description">Supplemental slides and documents.</div>
+            </a>
+
+        <div class="toc-section">
+            <h2>Chapters</h2>
+            <a href="chapter-00-what-is-a-programming-language/index.html" class="toc-link">
+                Chapter 0: What Is a Programming Language?
+                <div class="description">Language, syntax, semantics, and the implementation of Vertex.</div>
+            </a>
+            <a href="chapter-01-simple-expressions/index.html" class="toc-link">
+                Chapter 1: Simple Expressions
+                <div class="description">Vertex&#x27;s tokenizer, expression trees, recursive-descent parser, and evaluator.</div>
+            </a>
+            <a href="chapter-02-programs-and-assignments/index.html" class="toc-link">
+                Chapter 2: Programs and Assignments
+                <div class="description">Programs, statements, assignment, print, and the environment model.</div>
+            </a>
+            <a href="chapter-03-strings-and-basic-io/index.html" class="toc-link">
+                Chapter 3: Strings and Basic I/O
+                <div class="description">String values, input and output, explicit conversions, and repeatable tests.</div>
+            </a>
+            <a href="chapter-04-booleans-and-comparisons/index.html" class="toc-link">
+                Chapter 4: Booleans and Comparisons
+                <div class="description">Boolean values, comparisons, explicit conversions, and type inspection.</div>
+            </a>
+            <a href="chapter-05-logical-operators/index.html" class="toc-link">
+                Chapter 5: Logical Operators
+                <div class="description">Boolean operators, precedence, and short-circuit evaluation.</div>
+            </a>
+            <a href="chapter-06-returning-status/index.html" class="toc-link">
+                Chapter 6: Returning Status
+                <div class="description">The (value, status) pair, exit, and assertions.</div>
+            </a>
+            <a href="chapter-07-conditional-statements/index.html" class="toc-link">
+                Chapter 7: Conditional Statements
+                <div class="description">Conditional selection: if, else, and braced statement blocks.</div>
+            </a>
+            <a href="chapter-08-loops/index.html" class="toc-link">
+                Chapter 8: Loops
+                <div class="description">While loops, break, continue, and repeated evaluation.</div>
+            </a>
+            <a href="chapter-09-lists-and-indexing/index.html" class="toc-link">
+                Chapter 9: Lists and Indexing
+                <div class="description">Lists, indexing, indexed assignment, and shared mutable data.</div>
+            </a>
+            <a href="chapter-10-objects/index.html" class="toc-link">
+                Chapter 10: Objects
+                <div class="description">Mutable key-value records, field access, and comparison with positional lists.</div>
+            </a>
+            <a href="chapter-11-functions/index.html" class="toc-link">
+                Chapter 11: Functions
+                <div class="description">Function definitions, calls, parameters, return values, and dynamic scoping.</div>
+            </a>
+            <a href="chapter-12-scope-and-closures/index.html" class="toc-link">
+                Chapter 12: Scope and Closures
+                <div class="description">Lexical scope, closures, captured environments, and updates to outer bindings.</div>
+            </a>
+            <a href="chapter-13-advanced-features/index.html" class="toc-link">
+                Chapter 13: Native Functions and Modules
+                <div class="description">Native Functions and Modules</div>
+            </a>
+        </div>
+        <div class="toc-section">
+            <h2>Repository</h2>
+            <p class="intro">The course code is in the public GitHub repository at <a href="https://github.com/kentcs/structures">kentcs/structures</a>. You can fork it on GitHub, clone it with <code>git clone https://github.com/kentcs/structures.git</code>, or open it in <a href="https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=1347707811">GitHub Codespaces</a>.</p>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

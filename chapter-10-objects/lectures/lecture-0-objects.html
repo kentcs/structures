@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 10: Objects</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="objects">Objects</h1>
+<p>Named fields, nested records, and copying</p>
+<hr style="border:0;border-top:1px solid #c3cbd0;margin:32px 0 18px">
+<p class="slide-author" style="font-size:22px">
+Gregory S. DeLozier, PhD
+</p>
+</section>
+<section><h2 id="chapter-route">Chapter Route</h2>
+<ol type="1">
+<li>Records and named fields</li>
+<li>Nested records and shared fields</li>
+<li>Field access in the parser</li>
+<li>Copying and evaluator rules</li>
+</ol>
+</section>
+<section><h2 id="objects-in-vertex">Objects in Vertex</h2>
+<ul>
+<li>Object literals construct string-keyed records.</li>
+<li>Fields can be read, updated, and added.</li>
+<li>Equality compares keys and values, regardless of insertion
+order.</li>
+<li>Display preserves field insertion order.</li>
+</ul>
+</section>
+<section><h2 id="a-record-with-named-fields">A Record with Named Fields</h2>
+<pre class="vertex"><code>student = {&quot;name&quot;: &quot;Ada&quot;, &quot;score&quot;: 87};</code></pre>
+<p><img src="slide-assets/diagram-04.svg"
+alt="A Record with Named Fields" /></p>
+</section>
+<section><h2 id="reading-updating-and-adding">Reading, Updating, and Adding</h2>
+<pre class="vertex"><code>student = {&quot;name&quot;: &quot;Ada&quot;, &quot;score&quot;: 87};
+print(student.score);
+student.score = student.score + 3;
+student.passed = true;
+print(student.score);
+print(student.passed);</code></pre>
+<p><strong>Prints <code>87</code>, then <code>90</code>, then
+<code>true</code>.</strong></p>
+</section>
+<section><h2 id="equality-ignores-insertion-order">Equality Ignores Insertion
+Order</h2>
+<pre class="vertex"><code>a = {&quot;name&quot;: &quot;Ada&quot;, &quot;score&quot;: 87};
+b = {&quot;score&quot;: 87, &quot;name&quot;: &quot;Ada&quot;};
+print(a == b);</code></pre>
+<p><strong>Prints <code>true</code>: the same keys have equal
+values.</strong></p>
+</section>
+<section><h2 id="display-preserves-insertion-order">Display Preserves Insertion
+Order</h2>
+<pre class="vertex"><code>print(a);
+print(b);</code></pre>
+<table>
+<thead>
+<tr>
+<th>Object</th>
+<th>Field order in the output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>a</code></td>
+<td><code>name</code>, then <code>score</code></td>
+</tr>
+<tr>
+<td><code>b</code></td>
+<td><code>score</code>, then <code>name</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Equal objects can have different printed field
+orders.</strong></p>
+</section>
+<section><h2 id="positions-and-names">Positions and Names</h2>
+<table>
+<thead>
+<tr>
+<th>A positional record</th>
+<th>A named record</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>["Ada", 87]</code></td>
+<td><code>{"name": "Ada", "score": 87}</code></td>
+</tr>
+<tr>
+<td><code>student[0]</code></td>
+<td><code>student["name"]</code></td>
+</tr>
+<tr>
+<td><code>student[1]</code></td>
+<td><code>student.score</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Named fields make each value’s role visible.</strong></p>
+</section>
+<section><h2 id="reading-a-field">Reading a Field</h2>
+<pre class="vertex"><code>student[&quot;score&quot;]
+student.score
+
+field = &quot;score&quot;;
+student[field]</code></pre>
+<p><strong>Brackets evaluate a key. Dot notation spells
+one.</strong></p>
+</section>
+<section><h2 id="objects-and-lists-together">Objects and Lists Together</h2>
+<pre class="vertex"><code>students = [
+    {&quot;name&quot;: &quot;Ada&quot;, &quot;scores&quot;: [87, 93]},
+    {&quot;name&quot;: &quot;Lee&quot;, &quot;scores&quot;: [82, 90]}
+];
+students[0].scores[1] = 95;</code></pre>
+<p><strong>Each suffix selects the next value.</strong></p>
+</section>
+<section><h2 id="one-record-two-names">One Record, Two Names</h2>
+<pre class="vertex"><code>student = {&quot;score&quot;: 87};
+other = student;
+other.score = 90;</code></pre>
+<p><img src="slide-assets/diagram-11.svg"
+alt="One Record, Two Names" /></p>
+</section>
+<section><h2 id="field-update-or-new-record">Field Update or New Record</h2>
+<pre class="vertex"><code>student = {&quot;score&quot;: 87};
+other = student;
+other.score = 90;
+other = {&quot;name&quot;: &quot;Lee&quot;, &quot;score&quot;: 70};</code></pre>
+<table>
+<thead>
+<tr>
+<th>After this statement</th>
+<th><code>student.score</code></th>
+<th><code>other.score</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>other = student</code></td>
+<td>87</td>
+<td>87</td>
+</tr>
+<tr>
+<td><code>other.score = 90</code></td>
+<td>90</td>
+<td>90</td>
+</tr>
+<tr>
+<td><code>other = {"name": "Lee", "score": 70}</code></td>
+<td>90</td>
+<td>70</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="key-rules">Key Rules</h2>
+<table>
+<thead>
+<tr>
+<th>Example</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>{"na" + "me": "Ada"}</code></td>
+<td>Computed string key</td>
+</tr>
+<tr>
+<td><code>{1: "Ada"}</code></td>
+<td>Key-type error</td>
+</tr>
+<tr>
+<td><code>{"score": 87, "score": 90}</code></td>
+<td>Duplicate-key error</td>
+</tr>
+<tr>
+<td><code>{"score": 87,}</code></td>
+<td>Syntax error</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="objects-and-environments">Objects and Environments</h2>
+<table>
+<thead>
+<tr>
+<th>Object field access</th>
+<th>Identifier lookup</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Starts from a data value</td>
+<td>Starts from an environment</td>
+</tr>
+<tr>
+<td>Uses a string key</td>
+<td>Uses an identifier name</td>
+</tr>
+<tr>
+<td>Reads that object directly</td>
+<td>May follow environment links</td>
+</tr>
+<tr>
+<td>Missing key is an error</td>
+<td>Missing binding may be sought outward</td>
+</tr>
+</tbody>
+</table>
+<p><strong>A shared host representation does not make them the same
+thing.</strong></p>
+</section>
+<section><h2 id="a-field-named-parent">A Field Named <code>$PARENT</code></h2>
+<pre class="vertex"><code>grandparent = {&quot;name&quot;: &quot;Mae&quot;, &quot;birthplace&quot;: &quot;Kent&quot;};
+parent = {&quot;name&quot;: &quot;Lee&quot;, &quot;$PARENT&quot;: grandparent};
+print(parent[&quot;birthplace&quot;]);</code></pre>
+<p><strong>Missing-key error. No search through
+<code>grandparent</code>.</strong></p>
+</section>
+<section><h2 id="braces-depend-on-context">Braces Depend on Context</h2>
+<pre class="vertex"><code>student = {&quot;score&quot;: 87};
+
+if (student.score &gt;= 60) {
+    student.passed = true;
+}</code></pre>
+<p><strong>An expression constructs a value. A block contains
+statements.</strong></p>
+</section>
+<section><h2 id="object-literal-grammar">Object Literal Grammar</h2>
+<p>Extended Backus-Naur Form (EBNF)</p>
+<pre class="text"><code>object_expression ::= &quot;{&quot; [ field { &quot;,&quot; field } ] &quot;}&quot;
+field             ::= expression &quot;:&quot; expression</code></pre>
+<p><strong>Syntax permits an expression; evaluation requires a string
+key.</strong></p>
+</section>
+<section><h2 id="dot-notation-in-the-parser">Dot Notation in the Parser</h2>
+<pre class="vertex"><code>student.score
+student[&quot;score&quot;]</code></pre>
+<pre class="text"><code>complex
+  base:  identifier(&quot;student&quot;)
+  index: string(&quot;score&quot;)</code></pre>
+<p><strong>One abstract syntax tree (AST), two spellings.</strong></p>
+</section>
+<section><h2 id="field-assignment-tree">Field Assignment Tree</h2>
+<pre class="vertex"><code>student.score = 90;</code></pre>
+<p><img src="slide-assets/diagram-19.svg"
+alt="Field Assignment Tree" /></p>
+</section>
+<section><h2 id="construction-and-status">Construction and Status</h2>
+<p>For each field, in source order:</p>
+<ol type="1">
+<li>Evaluate the key; check status and type.</li>
+<li>Reject a duplicate key.</li>
+<li>Evaluate the value; check status.</li>
+<li>Store the field.</li>
+</ol>
+<p><strong><code>exit</code> stops construction before later fields
+run.</strong></p>
+</section>
+<section><h2 id="shallow-copy-shares-nested-values">Shallow Copy Shares Nested
+Values</h2>
+<pre class="vertex"><code>a = {&quot;scores&quot;: [87, 93]};</code></pre>
+<p><img src="slide-assets/diagram-21.svg"
+alt="Shallow Copy Shares Nested Values" /></p>
+<p><strong>Conceptual shallow copy: two objects share one
+list.</strong></p>
+</section>
+<section><h2 id="deep-copy-separates-nested-values">Deep Copy Separates Nested
+Values</h2>
+<pre class="vertex"><code>a = {&quot;scores&quot;: [87, 93]};
+b = copy(a);
+b.scores[1] = 100;</code></pre>
+<p><img src="slide-assets/diagram-22.svg"
+alt="Deep Copy Separates Nested Values" /></p>
+</section>
+<section><h2 id="shared-children-stay-shared">Shared Children Stay Shared</h2>
+<pre class="vertex"><code>child = {&quot;score&quot;: 87};
+a = {&quot;first&quot;: child, &quot;second&quot;: child};
+b = copy(a);</code></pre>
+<p><img src="slide-assets/diagram-23.svg"
+alt="Shared Children Stay Shared" /></p>
+</section>
+<section><h2 id="copying-a-cycle">Copying a Cycle</h2>
+<pre class="vertex"><code>a = {};
+a.self = a;
+b = copy(a);</code></pre>
+<p><img src="slide-assets/diagram-24.svg" alt="Copying a Cycle" /></p>
+</section>
+<section><h2 id="following-the-copied-self-reference">Following the Copied
+Self-Reference</h2>
+<pre class="vertex"><code>a = {}; a.self = a;
+b = copy(a);
+b.score = 90;
+print(b.self.score);
+print(a);</code></pre>
+<table>
+<thead>
+<tr>
+<th>Read</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>b.self.score</code></td>
+<td><code>90</code></td>
+</tr>
+<tr>
+<td><code>a</code></td>
+<td><code>{"self": {...}}</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>The new score belongs to <code>b</code>; <code>a</code> stays
+unchanged.</strong></p>
+</section>
+<section><h2 id="considerations">Considerations</h2>
+<p><strong>New object fields add named facts; list writes use existing
+positions.</strong></p>
+<p><strong>Rebinding one alias leaves the shared object
+unchanged.</strong></p>
+<p><strong>Evaluation checks the base type, key type, and field
+existence.</strong></p>
+</section>
+<section><h2 id="working-with-objects">Working with Objects</h2>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type({})</code></td>
+<td><code>"object"</code></td>
+</tr>
+<tr>
+<td><code>string(obj)</code></td>
+<td>Insertion-order representation</td>
+</tr>
+<tr>
+<td><code>copy(obj)</code></td>
+<td>Independent deep copy</td>
+</tr>
+<tr>
+<td><code>number(obj)</code>, <code>boolean(obj)</code></td>
+<td>Type error</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Use fields for named facts; keep field lookup
+direct.</strong></p>
+</section></div></div>
+<script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>

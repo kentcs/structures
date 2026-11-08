@@ -1,0 +1,92 @@
+print("Chapter 11: Functions");
+
+// Empty and nonempty lists, including mixed element types.
+empty = [];
+print(length(empty));
+mixed = [1, "two", true];
+print(mixed);
+
+// Reading by index. The index is a position; the element is what lives there.
+numbers = [10, 20, 30];
+print(numbers[1]);
+
+// Traversal with while and length.
+values = [3, 1, 4, 1, 5, 9];
+total = 0;
+i = 0;
+while (i < length(values)) {
+    total = total + values[i];
+    i = i + 1;
+};
+print(total);
+
+// Indexed assignment modifies an element in place.
+scores = [70, 80, 90];
+scores[0] = 75;
+print(scores);
+
+// Mutation vs rebinding: an alias sees a mutation, but not a rebind.
+original = [1, 2, 3];
+alias = original;
+alias[0] = 99;
+print(original);
+original = [7, 8, 9];
+print(alias);
+
+// Nested lists and chained indexing.
+matrix = [[1, 2], [3, 4], [5, 6]];
+print(matrix[1][0]);
+matrix[1][0] = 30;
+print(matrix);
+
+// Whole-number floats are valid indices; fractional ones are not.
+print(numbers[1.0]);
+
+// Comparing whole lists: structural equality, not identity, and still
+// consistent with Vertex's scalar rule that true is never equal to 1.
+print([1, 2] == [1, 2]);
+print([true] == [1]);
+
+// Concatenation builds a new list; the originals are untouched.
+first = [1, 2];
+second = [3, 4];
+combined = first + second;
+combined[0] = 99;
+print(first);
+print(combined);
+
+// slice, head, and tail work on lists and strings. A slice includes its
+// start position and stops before its end position. Each result is new;
+// the original is untouched.
+letters = [10, 20, 30, 40];
+print(slice(letters, 1, 3));
+print(head(letters));
+print(tail(letters));
+word = "hello";
+print(slice(word, 1, 3));
+print(head(word));
+print(tail(word));
+print(length(word));
+
+// A string reads by index the way a list does; the result is a
+// one-character string. A string cannot be assigned into, only replaced.
+print(word[1]);
+word = "j" + tail(word);
+print(word);
+
+// head rejects an empty list or string, so a loop checks length first.
+remaining = [3, 1, 2];
+backwards = [];
+while (length(remaining) > 0) {
+    backwards = [head(remaining)] + backwards;
+    remaining = tail(remaining);
+};
+print(backwards);
+
+// exit still propagates from every position the evaluator checks -- a list
+// element, an index base, an index, and an indexed assignment's value --
+// though none of those can be shown nested in source anymore: exit cannot
+// sit inside a larger expression, only stand alone as a statement.
+guard = [1, 2, 3];
+exit(3);
+print("This statement must not run");
