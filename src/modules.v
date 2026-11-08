@@ -1,0 +1,11 @@
+geometry = import("modules/geometry.v");
+print(geometry.square(5));
+print(geometry.sqrt(9));
+print(geometry.scale(5));
+geometry.factor = 3;
+print(geometry.scale(5));
+first = import("modules/counter.v");
+second = import("modules/counter.v");
+print(first.next());
+print(first.next());
+print(second.count);
