@@ -455,6 +455,8 @@ def parse_statement(tokens):
     # ===== CHAPTER 8 =====
     if tokens[0]["tag"] == "while":
         return parse_while_statement(tokens)
+    if tokens[0]["tag"] == "for":
+        return parse_for_statement(tokens)
     if tokens[0]["tag"] == "break":
         return {"tag": "break"}, tokens[1:]
     if tokens[0]["tag"] == "continue":
@@ -533,6 +535,19 @@ def parse_while_statement(tokens):
     tokens = require(tokens, ")", "Expected ')' after while condition")
     body, tokens = parse_block(tokens)
     return {"tag": "while", "condition": condition, "body": body}, tokens
+
+
+def parse_for_statement(tokens):
+    tokens = require(tokens, "for", "Expected 'for'")
+    tokens = require(tokens, "(", "Expected '(' after 'for'")
+    if tokens[0]["tag"] != "identifier":
+        raise SyntaxError(f"Expected a loop variable name, got {tokens[0]}")
+    name = tokens[0]["value"]
+    tokens = require(tokens[1:], "in", "Expected 'in' after loop variable")
+    collection, tokens = parse_expression(tokens)
+    tokens = require(tokens, ")", "Expected ')' after for collection")
+    body, tokens = parse_block(tokens)
+    return {"tag": "for", "name": name, "collection": collection, "body": body}, tokens
 
 
 def parse_function_tail(tokens):

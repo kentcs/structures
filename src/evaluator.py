@@ -963,6 +963,21 @@ def evaluate(ast, environment):
                 return value, status
             # Normal completion and "continue" both return to the condition.
 
+    if ast["tag"] == "for":
+        collection, status = evaluate(ast["collection"], environment)
+        if status is not None:
+            return collection, status
+        if type(collection) not in (list, str):
+            raise TypeError("for collection must be a list or string")
+        for item in list(collection):
+            environment[ast["name"]] = item
+            value, status = evaluate(ast["body"], environment)
+            if status == "break":
+                return None, None
+            if status is not None and status != "continue":
+                return value, status
+        return None, None
+
     if ast["tag"] == "program":
         globals_ = io_environment(environment)
         globals_.setdefault("__input", "")
