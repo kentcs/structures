@@ -9,7 +9,7 @@ from tokenizer import tokenize
 #   statement_list ::= { ";" } statement { ";" { ";" } statement } { ";" }
 #   statement ::= print_statement | exit_expression
 #               | assert_statement | if_statement | while_statement
-#               | break_statement | continue_statement
+#               | for_statement | break_statement | continue_statement
 #               | function_definition | return_statement | expression
 #   assert_statement ::= "assert" expression "," <string>
 #
@@ -36,6 +36,7 @@ from tokenizer import tokenize
 #
 #   ===== CHAPTER 8: loops =====
 #   while_statement ::= "while" "(" expression ")" block
+#   for_statement ::= "for" "(" <identifier> "in" expression ")" block
 #   break_statement ::= "break"
 #   continue_statement ::= "continue"
 #   A loop body is a block, the same requirement as an if branch. break and
