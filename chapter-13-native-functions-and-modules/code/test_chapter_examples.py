@@ -10,7 +10,7 @@ from contextlib import redirect_stdout, chdir
 
 from evaluator import evaluate_source
 
-CHAPTER = Path(__file__).resolve().parents[1] / 'chapter-13-advanced-features.md'
+CHAPTER = Path(__file__).resolve().parents[1] / 'chapter-13-native-functions-and-modules.md'
 
 
 class ChapterExampleTests(unittest.TestCase):

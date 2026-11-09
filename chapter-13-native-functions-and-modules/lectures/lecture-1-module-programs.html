@@ -20,6 +20,8 @@ sqrt = native(&quot;math.sqrt&quot;, [&quot;x&quot;]);
 distance = native(&quot;math.hypot&quot;, [&quot;a&quot;, &quot;b&quot;]);</code></pre>
 </section>
 <section><h2 id="importing-the-program">Importing the Program</h2>
+<p>The module’s <strong>global environment becomes the object named
+<code>geometry</code></strong> in the importing program.</p>
 <p><strong>Vertex program</strong></p>
 <pre class="vertex"><code>geometry = import(&quot;modules/geometry.v&quot;);
 print(geometry.factor);
@@ -196,11 +198,50 @@ print(other.factor);</code></pre>
 <li>Return those globals on normal completion.</li>
 </ol>
 </section>
-<section><h2 id="practice">Practice</h2>
-<p>Import two counters.</p>
-<p>Increment the first twice, then reset it. Increment the second
-once.</p>
-<p>What are their count fields?</p>
+<section><h2 id="create-a-module-modulespricing.v">Create a Module:
+<code>modules/pricing.v</code></h2>
+<p>Work in <code>chapter-13-native-functions-and-modules/code</code>.
+Create <code>modules/pricing.v</code>:</p>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>rate = 0.25;
+function total(amount) {
+    return amount * (1 + rate);
+};</code></pre>
+<p><strong>These globals will become the imported object’s
+fields.</strong></p>
+</section>
+<section><h2 id="use-the-module-pricing-demo.v">Use the Module:
+<code>pricing-demo.v</code></h2>
+<p>Create <code>pricing-demo.v</code> in the same <code>code</code>
+directory:</p>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>pricing = import(&quot;modules/pricing.v&quot;);
+print(pricing.rate);
+print(pricing.total(100));</code></pre>
+<p>Run: <code>python3 runner.py pricing-demo.v</code></p>
+<p><strong>Expected output: <code>0.25</code>, then
+<code>125.0</code>.</strong></p>
+</section>
+<section><h2 id="change-the-module-through-its-object">Change the Module Through
+Its Object</h2>
+<p>Append to <code>pricing-demo.v</code>, then run it again:</p>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>pricing.rate = 0.50;
+print(pricing.total(100));
+quote = pricing.total;
+print(quote(200));</code></pre>
+<p><strong>Additional output: <code>150.0</code>, then
+<code>300.0</code>.</strong></p>
+</section>
+<section><h2 id="import-a-second-instance">Import a Second Instance</h2>
+<p>Append to <code>pricing-demo.v</code>, then run it again:</p>
+<p><strong>Vertex program</strong></p>
+<pre class="vertex"><code>other = import(&quot;modules/pricing.v&quot;);
+print(pricing.rate);
+print(other.rate);
+print(other.total(100));</code></pre>
+<p><strong>Additional output: <code>0.5</code>, <code>0.25</code>, then
+<code>125.0</code>.</strong></p>
 </section>
 <section><h2 id="considerations">Considerations</h2>
 <p>Should imports cache instances?</p>
