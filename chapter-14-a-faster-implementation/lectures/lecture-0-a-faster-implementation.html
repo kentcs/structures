@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A Faster Implementation</title>
+<link rel="stylesheet" href="slide-assets/reveal.css">
+<link rel="stylesheet" href="slide-assets/slides.css">
+</head><body><div class="reveal"><div class="slides"><section><h1 id="a-faster-implementation">A Faster Implementation</h1>
+<p>One language. Several hosts.</p>
+</section>
+<section><h2 id="the-same-architecture-in-another-language">The same architecture
+in another language</h2>
+<p><img src="slide-assets/diagram-1.svg"
+alt="Interpreter diagram" /></p>
+<p>Names live in environments. Closures retain them.</p>
+</section>
+<section><h2 id="teaching-clarity-and-room-for-speed">Teaching clarity and room
+for speed</h2>
+<ul>
+<li>Faithfully preserve the educational architecture.</li>
+<li>Make corresponding ideas easy to recognize.</li>
+<li>A ground-up Go design could organize things differently.</li>
+<li>Faster still? A hypothesis to implement and measure.</li>
+</ul>
+</section>
+<section><h2 id="one-possible-internal-change">One possible internal change</h2>
+<ul>
+<li>Today: string tags identify token kinds.</li>
+<li>Alternative: named <code>uint8</code> token-kind constants.</li>
+<li>Keep token text as strings.</li>
+<li>Measure the effect; do not assume a speedup.</li>
+</ul>
+</section>
+<section><h2 id="shared-tests-independent-implementations">Shared tests,
+independent implementations</h2>
+<ul>
+<li>Keep the standard test suite separate from the interpreters.</li>
+<li>Run the same programs against the same expected behavior.</li>
+<li>Validate behavior before comparing performance.</li>
+<li>Passing tests is evidence, not proof of full equivalence.</li>
+</ul>
+</section>
+<section><h2 id="about-two-minutes-of-go">About Two Minutes of Go</h2>
+<pre class="go"><code>counts := map[string]int{&quot;calls&quot;: 1}
+counts[&quot;errors&quot;] = 0 // creates a new key
+value, found := counts[&quot;missing&quot;] // 0, false
+names := []string{&quot;left&quot;, &quot;right&quot;}
+names = append(names, &quot;result&quot;)
+prefix := names[:2]</code></pre>
+<p>Maps resemble dictionaries; slices resemble lists.</p>
+</section>
+<section><h2 id="scope-still-works-the-same-way">Scope still works the same
+way</h2>
+<pre class="go"><code>for current := env; current != nil; current = current.Parent {
+    if value, ok := current.Variables[name]; ok {
+        return value, true
+    }
+}</code></pre>
+</section>
+<section><h2 id="change-representation-not-meaning">Change representation, not
+meaning</h2>
+<pre class="go"><code>type Value = *valueData</code></pre>
+<p><img src="slide-assets/diagram-2.svg"
+alt="Interpreter diagram" /></p>
+</section>
+<section><h2 id="rebinding-a-scalar-leaves-its-aliases-unchanged">Rebinding a
+scalar leaves its aliases unchanged</h2>
+<p><img src="slide-assets/diagram-3.svg"
+alt="Interpreter diagram" /></p>
+</section>
+<section><h2 id="a-recorded-mixed-workload-comparison">A recorded mixed-workload
+comparison</h2>
+<table>
+<thead>
+<tr>
+<th>Runtime</th>
+<th style="text-align: right;">Median ms</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPython</td>
+<td style="text-align: right;">135.022</td>
+</tr>
+<tr>
+<td>PyPy, one warmup</td>
+<td style="text-align: right;">71.010</td>
+</tr>
+<tr>
+<td>PyPy, twenty warmups</td>
+<td style="text-align: right;">57.417</td>
+</tr>
+<tr>
+<td>Go</td>
+<td style="text-align: right;">9.858</td>
+</tr>
+</tbody>
+</table>
+<p>PyPy runs the same Python Trinket interpreter with a JIT.</p>
+</section>
+<section><h2 id="one-optimization-different-outcomes">One optimization, different
+outcomes</h2>
+<table>
+<thead>
+<tr>
+<th>Go workload</th>
+<th style="text-align: right;">Before ms</th>
+<th style="text-align: right;">After ms</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mixed total</td>
+<td style="text-align: right;">11.978</td>
+<td style="text-align: right;">10.101</td>
+</tr>
+<tr>
+<td>AST execution</td>
+<td style="text-align: right;">47.888</td>
+<td style="text-align: right;">48.006</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section><h2 id="what-did-the-timer-measure">What did the timer measure?</h2>
+<ul>
+<li>Startup, parsing, or evaluation?</li>
+<li>Cold execution or warmed runtime?</li>
+<li>Same inputs and correct results?</li>
+<li>Repeated, interleaved samples?</li>
+</ul>
+</section>
+<section><h2 id="make-the-comparison-repeatable">Make the comparison
+repeatable</h2>
+<p><img src="slide-assets/diagram-4.svg"
+alt="Interpreter diagram" /></p>
+<p>Elapsed time and allocation counts answer different questions.</p>
+</section>
+<section><h2 id="read-the-evidence">Read the evidence</h2>
+<p>Which claim survives the limitations?</p>
+<p>No programming assignment: discuss the benchmark tables.</p>
+</section></div></div><script src="slide-assets/reveal.js"></script>
+<script>Reveal.initialize({width:1280,height:720,margin:0.05,center:true,hash:true,slideNumber:true,transition:'none'});</script>
+</body></html>
